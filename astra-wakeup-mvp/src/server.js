@@ -67,7 +67,9 @@ async function fireWakeup(reason = 'scheduled') {
   state.lastWakeAt = new Date().toISOString();
   state.pendingWake = true;
   saveState(state);
-  schedulePunishment();
+
+  // Only schedule one follow-up blast; avoid infinite punishment loops.
+  if (reason !== 'punishment') schedulePunishment();
 
   return { ok: true, line, mode, messageId: msg.id };
 }

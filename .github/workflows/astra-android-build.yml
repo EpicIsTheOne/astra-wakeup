@@ -1,0 +1,65 @@
+name: Build Astra Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'astra-wakeup-android/**'
+      - '.github/workflows/astra-android-build.yml'
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: astra-wakeup-android
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build debug APK
+        run: gradle assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-wakeup-debug-apk
+          path: astra-wakeup-android/app/build/outputs/apk/debug/app-debug.apk
+
+  release-apk:
+    if: github.ref == 'refs/heads/main'
+    needs: build-apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: astra-wakeup-debug-apk
+          path: dist
+
+      - name: Publish rolling pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: astra-latest
+          prerelease: true
+          name: Astra Wake-Up (latest)
+          files: dist/app-debug.apk
