@@ -47,4 +47,19 @@
             android:layout_weight="1"
             android:text="Talk" />
     </LinearLayout>
+
+    <Button
+        android:id="@+id/btnCallToggle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Start Call" />
+
+    <TextView
+        android:id="@+id/tvCallStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="Call: idle"
+        android:textSize="13sp" />
 </LinearLayout>
