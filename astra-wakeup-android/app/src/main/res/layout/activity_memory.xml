@@ -18,6 +18,25 @@
         android:layout_height="wrap_content"
         android:entries="@array/memory_categories" />
 
+    <Spinner
+        android:id="@+id/spMemoryAddCategory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/memory_categories_add" />
+
+    <EditText
+        android:id="@+id/etMemoryNote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="Add a memory note..." />
+
+    <Button
+        android:id="@+id/btnAddMemory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Add Memory Note" />
+
     <TextView
         android:id="@+id/tvMemory"
         android:layout_width="match_parent"
