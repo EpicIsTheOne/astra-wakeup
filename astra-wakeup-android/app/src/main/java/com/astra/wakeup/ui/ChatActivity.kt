@@ -25,6 +25,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var ttsReady = false
     private var callMode = false
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var tvCall: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,7 +36,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val tvChat = findViewById<TextView>(R.id.tvChat)
         val etInput = findViewById<EditText>(R.id.etChatInput)
         val btnCall = findViewById<Button>(R.id.btnCallToggle)
-        val tvCall = findViewById<TextView>(R.id.tvCallStatus)
+        tvCall = findViewById(R.id.tvCallStatus)
 
         findViewById<Button>(R.id.btnChatSend).setOnClickListener {
             val msg = etInput.text.toString().trim()
@@ -54,14 +55,16 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             callMode = !callMode
             if (callMode) {
                 btnCall.text = "End Call"
-                tvCall.text = "Call: live 🎙️"
+                setCallStatus("live 🎙️")
                 tvChat.append("\nAstra: Call connected. Try not to mumble.")
                 speak("Call connected. Talk to me.")
+                startService(Intent(this, CallForegroundService::class.java))
                 startSpeechInput(etInput, tvChat, singleShot = false)
             } else {
                 btnCall.text = "Start Call"
-                tvCall.text = "Call: idle"
+                setCallStatus("idle")
                 recognizer?.cancel()
+                stopService(Intent(this, CallForegroundService::class.java))
                 speak("Call ended.")
             }
         }
@@ -76,19 +79,27 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun setCallStatus(state: String) {
+        tvCall.text = "Call: $state"
+    }
+
     private fun askAstra(text: String, tv: TextView, fromCall: Boolean) {
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         val apiUrl = prefs.getString("api_url", "") ?: ""
+        if (fromCall) setCallStatus("thinking…")
+
         Thread {
-            val reply = WakeChatClient.chatReply(apiUrl, text) ?: "Network tantrum. Try again."
+            val result = WakeChatClient.chatReplyDetailed(apiUrl, text)
+            val reply = result.reply ?: "Network tantrum: ${result.error ?: "unknown"}"
             runOnUiThread {
                 tv.append("\nAstra: $reply")
+                if (fromCall) setCallStatus("speaking…")
                 speak(reply)
                 if (fromCall && callMode) {
                     handler.postDelayed({
                         val input = findViewById<EditText>(R.id.etChatInput)
                         startSpeechInput(input, tv, singleShot = false)
-                    }, 800)
+                    }, 900)
                 }
             }
         }.start()
@@ -106,8 +117,13 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
+        // turn-taking: stop TTS while user speaks (barge-in)
+        tts?.stop()
+
         recognizer?.destroy()
         recognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        if (!singleShot && callMode) setCallStatus("listening…")
+
         recognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
@@ -116,6 +132,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             override fun onEndOfSpeech() {}
             override fun onError(error: Int) {
                 if (!singleShot && callMode) {
+                    setCallStatus("reconnecting…")
                     handler.postDelayed({ startSpeechInput(etInput, tvChat, singleShot = false) }, 1000)
                 }
             }
@@ -128,6 +145,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     tvChat.append("\nYou: $heard")
                     askAstra(heard, tvChat, fromCall = !singleShot)
                 } else if (!singleShot && callMode) {
+                    setCallStatus("listening…")
                     handler.postDelayed({ startSpeechInput(etInput, tvChat, singleShot = false) }, 800)
                 }
             }
@@ -145,6 +163,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         callMode = false
         recognizer?.destroy()
         tts?.shutdown()
+        stopService(Intent(this, CallForegroundService::class.java))
         super.onDestroy()
     }
 }

@@ -21,6 +21,7 @@ class MainActivity : AppCompatActivity() {
         val cbRandomSfx = findViewById<CheckBox>(R.id.cbRandomSfx)
         val cbPunish = findViewById<CheckBox>(R.id.cbPunish)
         val tvApiStatus = findViewById<TextView>(R.id.tvApiStatus)
+        val tvApiDetails = findViewById<TextView>(R.id.tvApiDetails)
 
         etApiUrl.setText(prefs.getString("api_url", "http://72.60.29.204:8787/api/astra"))
         cbRandomSfx.isChecked = prefs.getBoolean("random_sfx", true)
@@ -42,10 +43,12 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnCheckApi).setOnClickListener {
             val apiUrl = etApiUrl.text.toString().trim()
             tvApiStatus.text = "API status: checking..."
+            tvApiDetails.text = ""
             Thread {
-                val (ok, msg) = ApiStatusClient.check(apiUrl)
+                val suite = ApiStatusClient.checkSuite(apiUrl)
                 runOnUiThread {
-                    tvApiStatus.text = if (ok) "API status: connected ✅" else "API status: offline ❌ ($msg)"
+                    tvApiStatus.text = "API status: ${suite.summary}"
+                    tvApiDetails.text = suite.details
                 }
             }.start()
         }

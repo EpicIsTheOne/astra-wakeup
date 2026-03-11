@@ -70,6 +70,13 @@
         android:text="API status: unknown"
         android:textSize="14sp" />
 
+    <TextView
+        android:id="@+id/tvApiDetails"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="12sp" />
+
     <Button
         android:id="@+id/btnSchedule"
         android:layout_width="match_parent"

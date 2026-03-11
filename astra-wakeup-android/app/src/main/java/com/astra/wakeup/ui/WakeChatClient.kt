@@ -6,49 +6,53 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
-object WakeChatClient {
-    fun wakeReply(apiUrl: String, userText: String): String? {
-        if (apiUrl.isBlank() || userText.isBlank()) return null
-        val chatUrl = ApiEndpoints.wakeRespond(apiUrl)
+data class ChatResult(val reply: String? = null, val error: String? = null)
 
+object WakeChatClient {
+    private fun postJson(url: String, body: JSONObject): ChatResult {
         return runCatching {
-            val conn = URL(chatUrl).openConnection() as HttpURLConnection
+            val conn = URL(url).openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.connectTimeout = 8000
             conn.readTimeout = 12000
             conn.setRequestProperty("Content-Type", "application/json")
             conn.doOutput = true
 
-            val body = JSONObject().apply {
-                put("user", "Epic")
-                put("text", userText)
-            }
             OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val text = BufferedReader(stream.reader()).use { it.readText() }
+            if (code !in 200..299) return ChatResult(error = "HTTP $code: ${text.take(120)}")
+            val reply = JSONObject(text).optString("reply").takeIf { it.isNotBlank() }
+            ChatResult(reply = reply, error = if (reply == null) "Empty reply" else null)
+        }.getOrElse { ChatResult(error = it.message ?: "Network error") }
+    }
 
-            val text = BufferedReader(conn.inputStream.reader()).use { it.readText() }
-            JSONObject(text).optString("reply").takeIf { it.isNotBlank() }
-        }.getOrNull()
+    fun wakeReply(apiUrl: String, userText: String): String? {
+        return wakeReplyDetailed(apiUrl, userText).reply
+    }
+
+    fun wakeReplyDetailed(apiUrl: String, userText: String): ChatResult {
+        if (apiUrl.isBlank() || userText.isBlank()) return ChatResult(error = "Missing API URL or text")
+        val chatUrl = ApiEndpoints.wakeRespond(apiUrl)
+        val body = JSONObject().apply {
+            put("user", "Epic")
+            put("text", userText)
+        }
+        return postJson(chatUrl, body)
     }
 
     fun chatReply(apiUrl: String, userText: String): String? {
-        if (apiUrl.isBlank() || userText.isBlank()) return null
+        return chatReplyDetailed(apiUrl, userText).reply
+    }
+
+    fun chatReplyDetailed(apiUrl: String, userText: String): ChatResult {
+        if (apiUrl.isBlank() || userText.isBlank()) return ChatResult(error = "Missing API URL or text")
         val chatUrl = ApiEndpoints.chatRespond(apiUrl)
-
-        return runCatching {
-            val conn = URL(chatUrl).openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.connectTimeout = 8000
-            conn.readTimeout = 12000
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-
-            val body = JSONObject().apply {
-                put("user", "Epic")
-                put("text", userText)
-            }
-            OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
-            val text = BufferedReader(conn.inputStream.reader()).use { it.readText() }
-            JSONObject(text).optString("reply").takeIf { it.isNotBlank() }
-        }.getOrNull()
+        val body = JSONObject().apply {
+            put("user", "Epic")
+            put("text", userText)
+        }
+        return postJson(chatUrl, body)
     }
 }
