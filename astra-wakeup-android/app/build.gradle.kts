@@ -7,6 +7,21 @@ android {
     namespace = "com.astra.wakeup"
     compileSdk = 34
 
+    signingConfigs {
+        create("release") {
+            val ksPath = project.findProperty("ASTRA_KEYSTORE_PATH") as String?
+            val keyAliasProp = project.findProperty("ASTRA_KEY_ALIAS") as String?
+            val keyPassProp = project.findProperty("ASTRA_KEY_PASSWORD") as String?
+            val storePassProp = project.findProperty("ASTRA_STORE_PASSWORD") as String?
+            if (!ksPath.isNullOrBlank()) {
+                storeFile = file(ksPath)
+                keyAlias = keyAliasProp
+                keyPassword = keyPassProp
+                storePassword = storePassProp
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.astra.wakeup"
         minSdk = 26
@@ -18,6 +33,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            val ksPath = project.findProperty("ASTRA_KEYSTORE_PATH") as String?
+            if (!ksPath.isNullOrBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

@@ -112,8 +112,21 @@ class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         val apiUrl = prefs.getString("api_url", "") ?: ""
         val wakeProfile = prefs.getString("wake_profile", "bully") ?: "bully"
+        val astraFm = prefs.getBoolean("astra_fm", true)
 
         Thread {
+            val fmScript = if (!punishment && astraFm) {
+                WakeMessageClient.fetchFmResult(apiUrl, wakeProfile)?.script
+            } else null
+
+            if (!fmScript.isNullOrBlank()) {
+                runOnUiThread {
+                    findViewById<TextView>(R.id.tvLine).text = fmScript
+                    speak(fmScript)
+                }
+                return@Thread
+            }
+
             val result = WakeMessageClient.fetchLineResult(apiUrl, punishment, wakeProfile)
             val line = result?.line ?: if (punishment) punishmentShots.random() else fallbackLines.random()
             val mission = result?.mission

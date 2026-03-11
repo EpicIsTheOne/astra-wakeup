@@ -1,0 +1,52 @@
+name: Release Astra Android APK (signed)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: astra-wakeup-android
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Decode keystore
+        env:
+          ASTRA_KEYSTORE_B64: ${{ secrets.ASTRA_KEYSTORE_B64 }}
+        run: |
+          test -n "$ASTRA_KEYSTORE_B64" || (echo "Missing ASTRA_KEYSTORE_B64" && exit 1)
+          echo "$ASTRA_KEYSTORE_B64" | base64 -d > app/astra-release.jks
+
+      - name: Build signed release APK
+        env:
+          ASTRA_KEY_ALIAS: ${{ secrets.ASTRA_KEY_ALIAS }}
+          ASTRA_KEY_PASSWORD: ${{ secrets.ASTRA_KEY_PASSWORD }}
+          ASTRA_STORE_PASSWORD: ${{ secrets.ASTRA_STORE_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease \
+            -PASTRA_KEYSTORE_PATH=app/astra-release.jks \
+            -PASTRA_KEY_ALIAS="$ASTRA_KEY_ALIAS" \
+            -PASTRA_KEY_PASSWORD="$ASTRA_KEY_PASSWORD" \
+            -PASTRA_STORE_PASSWORD="$ASTRA_STORE_PASSWORD"
+
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-signed-release-apk
+          path: astra-wakeup-android/app/build/outputs/apk/release/app-release.apk

@@ -199,6 +199,46 @@ async function astraLineHandler(req, res) {
 
 app.post('/api/wakeup/line', astraLineHandler);
 app.post('/api/astra/line', astraLineHandler);
+app.post('/api/astra/fm', async (req, res) => {
+  const wakeProfile = String(req.body?.wakeProfile || state.wakeProfile || 'bully');
+  const script = await generateAstraFmScript({ wakeProfile });
+  res.json({ ok: true, script, wakeProfile });
+});
+
+async function generateAstraFmScript({ wakeProfile = 'bully' } = {}) {
+  const mission = pickMission();
+  if (!cfg.openaiApiKey) {
+    return `Good morning Epic, welcome to Astra FM. Today's mission: ${mission}. Stop negotiating with your blanket and get moving.`;
+  }
+
+  try {
+    const chat = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cfg.openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1-mini',
+        temperature: 0.9,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are Astra FM, a sassy morning radio host. Write a short wake script in 4-6 lines. Include: a cheeky opener, 1 fake radio stinger line, mission of the day, and a direct wake command. Keep under 90 words.'
+          },
+          {
+            role: 'user',
+            content: `User: Epic. Wake profile: ${wakeProfile}. Mission: ${mission}.`
+          }
+        ]
+      })
+    });
+    const json = await chat.json();
+    return json?.choices?.[0]?.message?.content?.trim() || `Astra FM online. Mission: ${mission}. Move.`;
+  } catch {
+    return `Astra FM online. Mission: ${mission}. Move.`;
+  }
+}
 
 async function generateAstraReply(text) {
   if (!cfg.openaiApiKey) return "Nope. You're awake now, no excuses.";

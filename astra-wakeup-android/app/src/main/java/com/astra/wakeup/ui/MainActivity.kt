@@ -22,6 +22,7 @@ class MainActivity : AppCompatActivity() {
         val etApiUrl = findViewById<EditText>(R.id.etApiUrl)
         val cbRandomSfx = findViewById<CheckBox>(R.id.cbRandomSfx)
         val cbPunish = findViewById<CheckBox>(R.id.cbPunish)
+        val cbAstraFm = findViewById<CheckBox>(R.id.cbAstraFm)
         val spWakeProfile = findViewById<Spinner>(R.id.spWakeProfile)
         val tvVersion = findViewById<TextView>(R.id.tvVersion)
         val tvApiStatus = findViewById<TextView>(R.id.tvApiStatus)
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
         tvVersion.text = "version: ${pkgInfo.versionName}"
         cbRandomSfx.isChecked = prefs.getBoolean("random_sfx", true)
         cbPunish.isChecked = prefs.getBoolean("punish", true)
+        cbAstraFm.isChecked = prefs.getBoolean("astra_fm", true)
         val profile = prefs.getString("wake_profile", "bully") ?: "bully"
         val idx = resources.getStringArray(R.array.wake_profiles).indexOf(profile).coerceAtLeast(0)
         spWakeProfile.setSelection(idx)
@@ -77,6 +79,7 @@ class MainActivity : AppCompatActivity() {
                 .putString("api_url", apiUrl)
                 .putBoolean("random_sfx", cbRandomSfx.isChecked)
                 .putBoolean("punish", cbPunish.isChecked)
+                .putBoolean("astra_fm", cbAstraFm.isChecked)
                 .putString("wake_profile", wakeProfile)
                 .apply()
 

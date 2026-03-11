@@ -13,6 +13,7 @@ object ApiEndpoints {
     }
 
     fun line(apiUrl: String) = "${normalizeBase(apiUrl)}/line"
+    fun fm(apiUrl: String) = "${normalizeBase(apiUrl)}/fm"
     fun wakeRespond(apiUrl: String) = "${normalizeBase(apiUrl)}/wake-respond"
     fun chatRespond(apiUrl: String) = "${normalizeBase(apiUrl)}/respond"
     fun health(apiUrl: String) = "${normalizeBase(apiUrl)}/health"
