@@ -39,6 +39,10 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, ChatActivity::class.java))
         }
 
+        findViewById<Button>(R.id.btnOpenMemory).setOnClickListener {
+            startActivity(Intent(this, MemoryActivity::class.java))
+        }
+
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             val apiUrl = etApiUrl.text.toString().trim()
             val wakeProfile = spWakeProfile.selectedItem.toString()

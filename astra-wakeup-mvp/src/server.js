@@ -253,6 +253,31 @@ app.post('/api/astra/memory', (req, res) => {
   res.json({ ok: true, saved: text });
 });
 
+app.get('/api/astra/memory', (_req, res) => {
+  const mem = loadPersonalMemory();
+  res.json({ ok: true, notes: mem.notes || [] });
+});
+
+app.delete('/api/astra/memory', (req, res) => {
+  const idx = Number(req.body?.index);
+  const mem = loadPersonalMemory();
+  mem.notes = mem.notes || [];
+
+  if (Number.isInteger(idx) && idx >= 0 && idx < mem.notes.length) {
+    const removed = mem.notes.splice(idx, 1);
+    savePersonalMemory(mem);
+    return res.json({ ok: true, removed: removed[0], notes: mem.notes });
+  }
+
+  if (req.body?.all === true) {
+    mem.notes = [];
+    savePersonalMemory(mem);
+    return res.json({ ok: true, removed: 'all', notes: [] });
+  }
+
+  return res.status(400).json({ ok: false, error: 'Provide valid index or all=true' });
+});
+
 app.post('/api/wakeup/fire', async (_req, res) => {
   try {
     const result = await fireWakeup('manual');

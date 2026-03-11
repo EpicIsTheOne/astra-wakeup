@@ -88,8 +88,13 @@ class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             tts?.language = Locale.US
-            tts?.setPitch(1.15f)
-            tts?.setSpeechRate(1.02f)
+            val profile = getSharedPreferences("astra", MODE_PRIVATE).getString("wake_profile", "bully") ?: "bully"
+            when (profile) {
+                "gentle" -> { tts?.setPitch(1.0f); tts?.setSpeechRate(0.95f) }
+                "normal" -> { tts?.setPitch(1.08f); tts?.setSpeechRate(1.0f) }
+                "nuclear" -> { tts?.setPitch(1.25f); tts?.setSpeechRate(1.08f) }
+                else -> { tts?.setPitch(1.15f); tts?.setSpeechRate(1.02f) }
+            }
             val femaleVoice = tts?.voices?.firstOrNull { v: Voice ->
                 val n = v.name.lowercase(Locale.US)
                 n.contains("female") || n.contains("fem") || n.contains("woman") || n.contains("girl")
@@ -213,12 +218,15 @@ class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun playRandomSfx() {
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         if (!prefs.getBoolean("random_sfx", true)) return
+        val profile = prefs.getString("wake_profile", "bully") ?: "bully"
 
-        val type = listOf(
-            RingtoneManager.TYPE_ALARM,
-            RingtoneManager.TYPE_NOTIFICATION,
-            RingtoneManager.TYPE_RINGTONE
-        ).random()
+        val typeChoices = when (profile) {
+            "gentle" -> listOf(RingtoneManager.TYPE_NOTIFICATION)
+            "normal" -> listOf(RingtoneManager.TYPE_NOTIFICATION, RingtoneManager.TYPE_ALARM)
+            "nuclear" -> listOf(RingtoneManager.TYPE_ALARM, RingtoneManager.TYPE_RINGTONE)
+            else -> listOf(RingtoneManager.TYPE_ALARM, RingtoneManager.TYPE_NOTIFICATION, RingtoneManager.TYPE_RINGTONE)
+        }
+        val type = typeChoices.random()
 
         val soundUri = RingtoneManager.getDefaultUri(type)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
@@ -226,8 +234,15 @@ class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         ringtone?.streamType = AudioManager.STREAM_ALARM
         ringtone?.play()
 
+        val vibePattern = when (profile) {
+            "gentle" -> longArrayOf(0, 250, 150, 250)
+            "normal" -> longArrayOf(0, 350, 120, 450)
+            "nuclear" -> longArrayOf(0, 600, 80, 700, 80, 700)
+            else -> longArrayOf(0, 400, 150, 600)
+        }
+
         (getSystemService(VIBRATOR_SERVICE) as? Vibrator)?.let { v ->
-            v.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 400, 150, 600), -1))
+            v.vibrate(VibrationEffect.createWaveform(vibePattern, -1))
         }
     }
 

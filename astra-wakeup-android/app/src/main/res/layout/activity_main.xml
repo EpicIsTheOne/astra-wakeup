@@ -26,6 +26,13 @@
         android:layout_marginTop="12dp"
         android:text="Open Chat" />
 
+    <Button
+        android:id="@+id/btnOpenMemory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Memory Manager" />
+
     <EditText
         android:id="@+id/etApiUrl"
         android:layout_width="match_parent"
