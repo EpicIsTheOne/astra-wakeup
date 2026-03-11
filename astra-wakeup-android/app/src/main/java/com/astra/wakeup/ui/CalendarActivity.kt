@@ -2,7 +2,9 @@ package com.astra.wakeup.ui
 
 import android.os.Bundle
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.astra.wakeup.R
 
@@ -12,6 +14,12 @@ class CalendarActivity : AppCompatActivity() {
         setContentView(R.layout.activity_calendar)
 
         val tv = findViewById<TextView>(R.id.tvCalendar)
+        val etId = findViewById<EditText>(R.id.etCronId)
+        val etName = findViewById<EditText>(R.id.etCronName)
+        val etExpr = findViewById<EditText>(R.id.etCronExpr)
+        val etTz = findViewById<EditText>(R.id.etCronTz)
+        val etMessage = findViewById<EditText>(R.id.etCronMessage)
+
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         val apiUrl = prefs.getString("api_url", "") ?: ""
 
@@ -24,10 +32,53 @@ class CalendarActivity : AppCompatActivity() {
                         tv.text = "Now: $now\n\nNo cron jobs found (or fetch failed)."
                     } else {
                         val body = jobs.joinToString("\n\n") { j ->
-                            "• ${j.name}\n  cron: ${j.schedule} (${j.tz})\n  enabled: ${j.enabled}\n  next: ${j.nextRun}\n  status: ${j.status}"
+                            "• ${j.name}\n  id: ${j.id}\n  cron: ${j.schedule} (${j.tz})\n  enabled: ${j.enabled}\n  next: ${j.nextRun}\n  status: ${j.status}"
                         }
                         tv.text = "Now: $now\n\n$body"
                     }
+                }
+            }.start()
+        }
+
+        findViewById<Button>(R.id.btnCronCreate).setOnClickListener {
+            Thread {
+                val (ok, msg) = ApiCalendarClient.create(
+                    apiUrl,
+                    etName.text.toString().trim(),
+                    etExpr.text.toString().trim(),
+                    etTz.text.toString().trim(),
+                    etMessage.text.toString().trim()
+                )
+                runOnUiThread {
+                    Toast.makeText(this, if (ok) "Cron created" else "Create failed: $msg", Toast.LENGTH_SHORT).show()
+                    if (ok) refresh()
+                }
+            }.start()
+        }
+
+        findViewById<Button>(R.id.btnCronEdit).setOnClickListener {
+            Thread {
+                val (ok, msg) = ApiCalendarClient.edit(
+                    apiUrl,
+                    etId.text.toString().trim(),
+                    etName.text.toString().trim().ifBlank { null },
+                    etExpr.text.toString().trim().ifBlank { null },
+                    etTz.text.toString().trim().ifBlank { null },
+                    etMessage.text.toString().trim().ifBlank { null }
+                )
+                runOnUiThread {
+                    Toast.makeText(this, if (ok) "Cron edited" else "Edit failed: $msg", Toast.LENGTH_SHORT).show()
+                    if (ok) refresh()
+                }
+            }.start()
+        }
+
+        findViewById<Button>(R.id.btnCronDelete).setOnClickListener {
+            Thread {
+                val (ok, msg) = ApiCalendarClient.delete(apiUrl, etId.text.toString().trim())
+                runOnUiThread {
+                    Toast.makeText(this, if (ok) "Cron deleted" else "Delete failed: $msg", Toast.LENGTH_SHORT).show()
+                    if (ok) refresh()
                 }
             }.start()
         }

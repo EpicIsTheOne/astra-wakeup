@@ -341,6 +341,59 @@ app.get('/api/astra/calendar', (_req, res) => {
   });
 });
 
+app.post('/api/astra/cron/create', (req, res) => {
+  const name = String(req.body?.name || '').trim();
+  const cronExpr = String(req.body?.cron || '').trim();
+  const tz = String(req.body?.tz || cfg.tz || 'America/New_York');
+  const message = String(req.body?.message || '').trim();
+  if (!name || !cronExpr || !message) return res.status(400).json({ ok: false, error: 'name, cron, message required' });
+
+  try {
+    const raw = execFileSync('openclaw', [
+      'cron', 'add',
+      '--name', name,
+      '--cron', cronExpr,
+      '--tz', tz,
+      '--session', 'isolated',
+      '--message', message,
+      '--json'
+    ], { encoding: 'utf8' });
+    const out = JSON.parse(raw);
+    res.json({ ok: true, result: out });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
+});
+
+app.post('/api/astra/cron/edit', (req, res) => {
+  const id = String(req.body?.id || '').trim();
+  if (!id) return res.status(400).json({ ok: false, error: 'id required' });
+
+  const args = ['cron', 'edit', id];
+  if (req.body?.name) args.push('--name', String(req.body.name));
+  if (req.body?.cron) args.push('--cron', String(req.body.cron));
+  if (req.body?.tz) args.push('--tz', String(req.body.tz));
+  if (req.body?.message) args.push('--message', String(req.body.message));
+
+  try {
+    execFileSync('openclaw', args, { encoding: 'utf8' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
+});
+
+app.post('/api/astra/cron/delete', (req, res) => {
+  const id = String(req.body?.id || '').trim();
+  if (!id) return res.status(400).json({ ok: false, error: 'id required' });
+  try {
+    execFileSync('openclaw', ['cron', 'remove', id], { encoding: 'utf8' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e.message || e) });
+  }
+});
+
 app.get('/api/astra/analytics', (_req, res) => {
   const events = readWakeEvents(300);
   const wakes = events.filter((e) => e.type === 'wake');

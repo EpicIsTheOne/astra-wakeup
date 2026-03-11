@@ -12,6 +12,65 @@
         android:textSize="22sp"
         android:textStyle="bold" />
 
+    <EditText
+        android:id="@+id/etCronId"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Job ID (for edit/delete)" />
+
+    <EditText
+        android:id="@+id/etCronName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Job name" />
+
+    <EditText
+        android:id="@+id/etCronExpr"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Cron expr (e.g. 50 5 * * *)" />
+
+    <EditText
+        android:id="@+id/etCronTz"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Timezone (e.g. America/New_York)"
+        android:text="America/New_York" />
+
+    <EditText
+        android:id="@+id/etCronMessage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Message payload" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="6dp">
+
+        <Button
+            android:id="@+id/btnCronCreate"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Create" />
+
+        <Button
+            android:id="@+id/btnCronEdit"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Edit" />
+
+        <Button
+            android:id="@+id/btnCronDelete"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Delete" />
+    </LinearLayout>
+
     <TextView
         android:id="@+id/tvCalendar"
         android:layout_width="match_parent"
