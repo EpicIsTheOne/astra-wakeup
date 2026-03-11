@@ -8,6 +8,7 @@ import android.widget.EditText
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.astra.wakeup.R
 import com.astra.wakeup.alarm.AlarmScheduler
@@ -22,6 +23,7 @@ class MainActivity : AppCompatActivity() {
         val cbRandomSfx = findViewById<CheckBox>(R.id.cbRandomSfx)
         val cbPunish = findViewById<CheckBox>(R.id.cbPunish)
         val spWakeProfile = findViewById<Spinner>(R.id.spWakeProfile)
+        val tvVersion = findViewById<TextView>(R.id.tvVersion)
         val tvApiStatus = findViewById<TextView>(R.id.tvApiStatus)
         val tvApiDetails = findViewById<TextView>(R.id.tvApiDetails)
         val tvHealthChip = findViewById<TextView>(R.id.tvHealthChip)
@@ -29,6 +31,8 @@ class MainActivity : AppCompatActivity() {
         val tvChatChip = findViewById<TextView>(R.id.tvChatChip)
 
         etApiUrl.setText(prefs.getString("api_url", "http://72.60.29.204:8787/api/astra"))
+        val pkgInfo = packageManager.getPackageInfo(packageName, 0)
+        tvVersion.text = "version: ${pkgInfo.versionName}"
         cbRandomSfx.isChecked = prefs.getBoolean("random_sfx", true)
         cbPunish.isChecked = prefs.getBoolean("punish", true)
         val profile = prefs.getString("wake_profile", "bully") ?: "bully"
@@ -41,6 +45,21 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnOpenMemory).setOnClickListener {
             startActivity(Intent(this, MemoryActivity::class.java))
+        }
+
+        findViewById<Button>(R.id.btnReleaseNotes).setOnClickListener {
+            val apiUrl = etApiUrl.text.toString().trim()
+            Thread {
+                val notes = ApiOpsClient.releaseNotes(apiUrl)
+                val metrics = ApiOpsClient.metrics(apiUrl)
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("Astra Release Notes")
+                        .setMessage("$notes\n\nMetrics: $metrics")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }.start()
         }
 
         findViewById<Button>(R.id.btnSave).setOnClickListener {

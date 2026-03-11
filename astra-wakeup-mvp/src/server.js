@@ -76,7 +76,16 @@ async function getDynamicWakeLine({ punishment = false } = {}) {
 function loadPersonalMemory() {
   const p = path.resolve('data/personal-memory.json');
   try {
-    return JSON.parse(fs.readFileSync(p, 'utf8'));
+    const mem = JSON.parse(fs.readFileSync(p, 'utf8'));
+    mem.notes = (mem.notes || []).map((n) => {
+      if (typeof n === 'string') return { text: n, category: 'misc', at: new Date().toISOString() };
+      return {
+        text: String(n.text || '').slice(0, 220),
+        category: String(n.category || 'misc').toLowerCase(),
+        at: String(n.at || new Date().toISOString())
+      };
+    });
+    return mem;
   } catch {
     return { notes: [] };
   }
@@ -176,7 +185,7 @@ app.post('/api/astra/line', astraLineHandler);
 async function generateAstraReply(text) {
   if (!cfg.openaiApiKey) return "Nope. You're awake now, no excuses.";
   const mem = loadPersonalMemory();
-  const memContext = (mem.notes || []).slice(-8).map((n) => `- ${n}`).join('\n');
+  const memContext = (mem.notes || []).slice(-8).map((n) => `- [${n.category}] ${n.text}`).join('\n');
   try {
     const chat = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -227,6 +236,37 @@ app.get('/api/astra/health', (_req, res) => {
   res.json({ ok: true, service: 'astra', time: new Date().toISOString() });
 });
 
+app.get('/api/astra/release-notes', (_req, res) => {
+  const p = path.resolve('data/release-notes.md');
+  let notes = 'No release notes yet.';
+  try { notes = fs.readFileSync(p, 'utf8'); } catch {}
+  res.json({ ok: true, notes });
+});
+
+app.get('/api/astra/metrics', (_req, res) => {
+  const mem = loadPersonalMemory();
+  res.json({
+    ok: true,
+    streak: state.streak || 0,
+    wakeProfile: state.wakeProfile || 'bully',
+    pendingWake: Boolean(state.pendingWake),
+    memoryCount: (mem.notes || []).length,
+    lastWakeAt: state.lastWakeAt || null,
+    lastAckAt: state.lastAckAt || null
+  });
+});
+
+app.post('/api/astra/log', (req, res) => {
+  const level = String(req.body?.level || 'info').toLowerCase();
+  const message = String(req.body?.message || '').slice(0, 500);
+  if (!message) return res.status(400).json({ ok: false, error: 'Missing message' });
+  const line = `${new Date().toISOString()} [${level}] ${message}\n`;
+  const p = path.resolve('data/mobile-events.log');
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.appendFileSync(p, line);
+  res.json({ ok: true });
+});
+
 app.get('/api/astra/profile', (_req, res) => {
   res.json({ ok: true, wakeProfile: state.wakeProfile || 'bully' });
 });
@@ -244,18 +284,26 @@ app.post('/api/astra/profile', (req, res) => {
 
 app.post('/api/astra/memory', (req, res) => {
   const text = String(req.body?.text || '').trim().slice(0, 220);
+  const category = String(req.body?.category || 'misc').toLowerCase();
+  const allowed = ['preference', 'routine', 'dislike', 'goal', 'misc'];
   if (!text) return res.status(400).json({ ok: false, error: 'Missing text' });
+  if (!allowed.includes(category)) return res.status(400).json({ ok: false, error: 'Invalid category' });
+
   const mem = loadPersonalMemory();
   mem.notes = mem.notes || [];
-  mem.notes.push(text);
+  const item = { text, category, at: new Date().toISOString() };
+  mem.notes.push(item);
   mem.notes = mem.notes.slice(-100);
   savePersonalMemory(mem);
-  res.json({ ok: true, saved: text });
+  res.json({ ok: true, saved: item });
 });
 
-app.get('/api/astra/memory', (_req, res) => {
+app.get('/api/astra/memory', (req, res) => {
   const mem = loadPersonalMemory();
-  res.json({ ok: true, notes: mem.notes || [] });
+  const category = String(req.query?.category || '').toLowerCase();
+  let notes = mem.notes || [];
+  if (category) notes = notes.filter((n) => n.category === category);
+  res.json({ ok: true, notes });
 });
 
 app.delete('/api/astra/memory', (req, res) => {

@@ -12,6 +12,12 @@
         android:textSize="22sp"
         android:textStyle="bold" />
 
+    <Spinner
+        android:id="@+id/spMemoryCategory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/memory_categories" />
+
     <TextView
         android:id="@+id/tvMemory"
         android:layout_width="match_parent"
@@ -26,6 +32,27 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Refresh" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <EditText
+            android:id="@+id/etDeleteIndex"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Delete # (from list)"
+            android:inputType="number" />
+
+        <Button
+            android:id="@+id/btnDeleteIndex"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Delete" />
+    </LinearLayout>
 
     <Button
         android:id="@+id/btnClearMemory"

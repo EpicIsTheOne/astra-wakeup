@@ -12,6 +12,7 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -40,6 +41,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val tvChat = findViewById<TextView>(R.id.tvChat)
         val etInput = findViewById<EditText>(R.id.etChatInput)
         val btnCall = findViewById<Button>(R.id.btnCallToggle)
+        val cbRemember = findViewById<CheckBox>(R.id.cbRemember)
         tvCall = findViewById(R.id.tvCallStatus)
 
         findViewById<Button>(R.id.btnChatSend).setOnClickListener {
@@ -47,7 +49,8 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             if (msg.isNotBlank()) {
                 tvChat.append("\nYou: $msg")
                 etInput.setText("")
-                askAstra(msg, tvChat, fromCall = false)
+                askAstra(msg, tvChat, fromCall = false, remember = cbRemember.isChecked)
+                cbRemember.isChecked = false
             }
         }
 
@@ -97,13 +100,17 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         tvCall.text = "Call: $state"
     }
 
-    private fun askAstra(text: String, tv: TextView, fromCall: Boolean) {
+    private fun askAstra(text: String, tv: TextView, fromCall: Boolean, remember: Boolean = false) {
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         val apiUrl = prefs.getString("api_url", "") ?: ""
         if (fromCall) setCallStatus("thinking…")
 
         Thread {
+            if (remember) {
+                ApiMemoryClient.remember(apiUrl, text, category = "preference")
+            }
             val result = WakeChatClient.chatReplyDetailed(apiUrl, text)
+            if (result.error != null) ApiOpsClient.log(apiUrl, "warn", "chatReply error: ${result.error}")
             val reply = result.reply ?: "Network tantrum: ${result.error ?: "unknown"}"
             runOnUiThread {
                 tv.append("\nAstra: $reply")
@@ -168,7 +175,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 etInput.setText(heard)
                 if (heard.isNotBlank()) {
                     tvChat.append("\nYou: $heard")
-                    askAstra(heard, tvChat, fromCall = !singleShot)
+                    askAstra(heard, tvChat, fromCall = !singleShot, remember = false)
                 } else if (!singleShot && callMode) {
                     setCallStatus("listening…")
                     handler.postDelayed({ startSpeechInput(etInput, tvChat, singleShot = false) }, 800)

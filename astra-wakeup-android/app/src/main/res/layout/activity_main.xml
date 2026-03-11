@@ -33,6 +33,20 @@
         android:layout_marginTop="8dp"
         android:text="Memory Manager" />
 
+    <Button
+        android:id="@+id/btnReleaseNotes"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Release Notes" />
+
+    <TextView
+        android:id="@+id/tvVersion"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="version: -"
+        android:textSize="12sp" />
+
     <EditText
         android:id="@+id/etApiUrl"
         android:layout_width="match_parent"

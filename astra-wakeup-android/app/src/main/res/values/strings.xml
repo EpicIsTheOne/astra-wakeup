@@ -8,4 +8,13 @@
         <item>bully</item>
         <item>nuclear</item>
     </string-array>
+
+    <string-array name="memory_categories">
+        <item>all</item>
+        <item>preference</item>
+        <item>routine</item>
+        <item>dislike</item>
+        <item>goal</item>
+        <item>misc</item>
+    </string-array>
 </resources>
