@@ -1,5 +1,8 @@
 package com.astra.wakeup.ui
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.Ringtone
 import android.media.RingtoneManager
@@ -8,20 +11,25 @@ import android.os.Handler
 import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.astra.wakeup.R
 import com.astra.wakeup.alarm.AlarmScheduler
 import java.util.Locale
-import kotlin.random.Random
 
 class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var ringtone: Ringtone? = null
     private var tts: TextToSpeech? = null
+    private var recognizer: SpeechRecognizer? = null
     private val handler = Handler(Looper.getMainLooper())
     private var acknowledged = false
     private var ttsReady = false
@@ -57,8 +65,10 @@ class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         loadDynamicLineAndSpeak(false)
 
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
-        if (prefs.getBoolean("punish", true)) {
-            schedulePunishmentLoop()
+        if (prefs.getBoolean("punish", true)) schedulePunishmentLoop()
+
+        findViewById<Button>(R.id.btnTalk).setOnClickListener {
+            startListeningWithVAD()
         }
 
         findViewById<Button>(R.id.btnAwake).setOnClickListener {
@@ -108,6 +118,80 @@ class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }.start()
     }
 
+    private fun startListeningWithVAD() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 991)
+            return
+        }
+
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            speak("Speech recognition isn't available on this phone.")
+            return
+        }
+
+        recognizer?.destroy()
+        recognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        val transcriptView = findViewById<TextView>(R.id.tvTranscript)
+        transcriptView.text = "You: listening..."
+
+        recognizer?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                transcriptView.text = "You: (didn't catch that)"
+            }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+            override fun onResults(results: Bundle?) {
+                val heard = results
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                    ?.trim()
+                    .orEmpty()
+
+                if (heard.isBlank()) {
+                    transcriptView.text = "You: ..."
+                    return
+                }
+
+                transcriptView.text = "You: $heard"
+                respondToUserSpeech(heard)
+            }
+        })
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.US.toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 900L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 800L)
+        }
+
+        recognizer?.startListening(intent)
+    }
+
+    private fun respondToUserSpeech(userText: String) {
+        val prefs = getSharedPreferences("astra", MODE_PRIVATE)
+        val apiUrl = prefs.getString("api_url", "") ?: ""
+
+        Thread {
+            val reply = WakeChatClient.reply(apiUrl, userText)
+                ?: "Nice try. You're still waking up now."
+
+            runOnUiThread {
+                findViewById<TextView>(R.id.tvLine).text = reply
+                speak(reply)
+            }
+        }.start()
+    }
+
     private fun speak(text: String) {
         if (!ttsReady) {
             pendingSpeech = text
@@ -117,7 +201,7 @@ class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun speakNow(text: String) {
-        val params = android.os.Bundle().apply {
+        val params = Bundle().apply {
             putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
         }
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "wake-line")
@@ -157,6 +241,8 @@ class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun stopAudio() {
         handler.removeCallbacksAndMessages(null)
+        recognizer?.destroy()
+        recognizer = null
         ringtone?.stop()
         ringtone = null
         tts?.stop()

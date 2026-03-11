@@ -121,6 +121,42 @@ app.post('/api/wakeup/line', async (req, res) => {
   res.json({ ok: true, line, mode, source: aiLine ? 'openai' : 'local' });
 });
 
+app.post('/api/wakeup/respond', async (req, res) => {
+  const text = String(req.body?.text || '').slice(0, 280);
+  if (!text) return res.status(400).json({ ok: false, error: 'Missing text' });
+
+  if (!cfg.openaiApiKey) {
+    return res.json({ ok: true, reply: "Nope. You're awake now, no excuses." });
+  }
+
+  try {
+    const chat = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${cfg.openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1-mini',
+        temperature: 0.9,
+        messages: [
+          {
+            role: 'system',
+            content: "You are Astra, a sassy wake-up assistant. User just replied while half-asleep. Respond in 1 short sentence, teasing but useful, and push them to get up."
+          },
+          { role: 'user', content: text }
+        ]
+      })
+    });
+
+    const json = await chat.json();
+    const reply = json?.choices?.[0]?.message?.content?.trim() || "Cute excuse. Up. Now.";
+    res.json({ ok: true, reply });
+  } catch {
+    res.json({ ok: true, reply: "Nice try. Still waking up. Move." });
+  }
+});
+
 app.post('/api/wakeup/fire', async (_req, res) => {
   try {
     const result = await fireWakeup('manual');
