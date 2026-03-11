@@ -7,7 +7,9 @@ const defaults = {
   streak: 0,
   lastWakeAt: null,
   lastAckAt: null,
-  pendingWake: false
+  pendingWake: false,
+  pendingWakeCount: 0,
+  wakeProfile: 'bully'
 };
 
 export function loadState() {

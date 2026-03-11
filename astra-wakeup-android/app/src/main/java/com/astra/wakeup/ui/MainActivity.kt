@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -20,6 +21,7 @@ class MainActivity : AppCompatActivity() {
         val etApiUrl = findViewById<EditText>(R.id.etApiUrl)
         val cbRandomSfx = findViewById<CheckBox>(R.id.cbRandomSfx)
         val cbPunish = findViewById<CheckBox>(R.id.cbPunish)
+        val spWakeProfile = findViewById<Spinner>(R.id.spWakeProfile)
         val tvApiStatus = findViewById<TextView>(R.id.tvApiStatus)
         val tvApiDetails = findViewById<TextView>(R.id.tvApiDetails)
         val tvHealthChip = findViewById<TextView>(R.id.tvHealthChip)
@@ -29,18 +31,31 @@ class MainActivity : AppCompatActivity() {
         etApiUrl.setText(prefs.getString("api_url", "http://72.60.29.204:8787/api/astra"))
         cbRandomSfx.isChecked = prefs.getBoolean("random_sfx", true)
         cbPunish.isChecked = prefs.getBoolean("punish", true)
+        val profile = prefs.getString("wake_profile", "bully") ?: "bully"
+        val idx = resources.getStringArray(R.array.wake_profiles).indexOf(profile).coerceAtLeast(0)
+        spWakeProfile.setSelection(idx)
 
         findViewById<Button>(R.id.btnOpenChat).setOnClickListener {
             startActivity(Intent(this, ChatActivity::class.java))
         }
 
         findViewById<Button>(R.id.btnSave).setOnClickListener {
+            val apiUrl = etApiUrl.text.toString().trim()
+            val wakeProfile = spWakeProfile.selectedItem.toString()
             prefs.edit()
-                .putString("api_url", etApiUrl.text.toString().trim())
+                .putString("api_url", apiUrl)
                 .putBoolean("random_sfx", cbRandomSfx.isChecked)
                 .putBoolean("punish", cbPunish.isChecked)
+                .putString("wake_profile", wakeProfile)
                 .apply()
-            Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show()
+
+            Thread {
+                val (ok, msg) = ApiProfileClient.setProfile(apiUrl, wakeProfile)
+                runOnUiThread {
+                    val m = if (ok) "Saved (${wakeProfile})" else "Saved local, server profile failed: $msg"
+                    Toast.makeText(this, m, Toast.LENGTH_SHORT).show()
+                }
+            }.start()
         }
 
         findViewById<Button>(R.id.btnCheckApi).setOnClickListener {

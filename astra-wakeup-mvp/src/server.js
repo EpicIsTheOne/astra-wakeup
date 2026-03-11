@@ -19,6 +19,27 @@ let state = loadState();
 let snoozeTimer = null;
 let punishmentTimer = null;
 
+const missions = [
+  'Ship one meaningful thing before noon.',
+  'Do 20 focused minutes with zero distractions.',
+  'Inbox to zero on the top 5 messages.',
+  'Touch the hard task first, not the easy dopamine one.'
+];
+
+const profileModes = {
+  gentle: ['flirty'],
+  normal: ['flirty', 'gremlin'],
+  bully: ['savage', 'gremlin'],
+  nuclear: ['savage']
+};
+
+const punishmentIntervalsByProfile = {
+  gentle: [10],
+  normal: [6, 10],
+  bully: [3, 6, 10],
+  nuclear: [2, 4, 7, 10]
+};
+
 async function getDynamicWakeLine({ punishment = false } = {}) {
   if (!cfg.openaiApiKey) return null;
 
@@ -52,6 +73,25 @@ async function getDynamicWakeLine({ punishment = false } = {}) {
   }
 }
 
+function loadPersonalMemory() {
+  const p = path.resolve('data/personal-memory.json');
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch {
+    return { notes: [] };
+  }
+}
+
+function savePersonalMemory(mem) {
+  const p = path.resolve('data/personal-memory.json');
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(mem, null, 2));
+}
+
+function pickMission() {
+  return missions[Math.floor(Math.random() * missions.length)];
+}
+
 async function renderTts(text) {
   fs.mkdirSync('data', { recursive: true });
   const outPath = path.resolve('data/out-voice.mp3');
@@ -73,6 +113,11 @@ function schedulePunishment() {
   if (!cfg.punishmentEnabled) return;
   if (punishmentTimer) clearTimeout(punishmentTimer);
 
+  const profile = state.wakeProfile || 'bully';
+  const ladder = punishmentIntervalsByProfile[profile] || [cfg.punishmentMinutes];
+  const idx = Math.min(state.pendingWakeCount || 0, ladder.length - 1);
+  const min = ladder[idx];
+
   punishmentTimer = setTimeout(async () => {
     if (!state.pendingWake) return;
     try {
@@ -81,7 +126,7 @@ function schedulePunishment() {
     } catch (err) {
       console.error('[wake] punishment failed', err.message || err);
     }
-  }, cfg.punishmentMinutes * 60 * 1000);
+  }, min * 60 * 1000);
 }
 
 async function fireWakeup(reason = 'scheduled') {
@@ -99,6 +144,7 @@ async function fireWakeup(reason = 'scheduled') {
 
   state.lastWakeAt = new Date().toISOString();
   state.pendingWake = true;
+  state.pendingWakeCount = reason === 'punishment' ? (state.pendingWakeCount || 0) + 1 : 0;
   saveState(state);
 
   // Only schedule one follow-up blast; avoid infinite punishment loops.
@@ -115,10 +161,13 @@ app.get('/api/state', (_req, res) => res.json(state));
 
 async function astraLineHandler(req, res) {
   const punishment = Boolean(req.body?.punishment);
+  const wakeProfile = String(req.body?.wakeProfile || state.wakeProfile || 'bully');
+  const modes = profileModes[wakeProfile] || profileModes.bully;
   const aiLine = await getDynamicWakeLine({ punishment });
-  const mode = punishment ? 'savage' : ['flirty', 'savage', 'gremlin'][Math.floor(Math.random() * 3)];
+  const mode = punishment ? 'savage' : modes[Math.floor(Math.random() * modes.length)];
   const line = aiLine || buildWakeLine(cfg.wakeUserName, mode);
-  res.json({ ok: true, line, mode, source: aiLine ? 'openai' : 'local' });
+  const mission = pickMission();
+  res.json({ ok: true, line, mode, wakeProfile, mission, source: aiLine ? 'openai' : 'local' });
 }
 
 app.post('/api/wakeup/line', astraLineHandler);
@@ -126,6 +175,8 @@ app.post('/api/astra/line', astraLineHandler);
 
 async function generateAstraReply(text) {
   if (!cfg.openaiApiKey) return "Nope. You're awake now, no excuses.";
+  const mem = loadPersonalMemory();
+  const memContext = (mem.notes || []).slice(-8).map((n) => `- ${n}`).join('\n');
   try {
     const chat = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -139,7 +190,7 @@ async function generateAstraReply(text) {
         messages: [
           {
             role: 'system',
-            content: "You are Astra, a sassy assistant. Respond in 1-2 short sentences, playful teasing but helpful."
+            content: `You are Astra, a sassy assistant. Respond in 1-2 short sentences, playful teasing but helpful.\nKnown user memory:\n${memContext || '- none yet'}`
           },
           { role: 'user', content: text }
         ]
@@ -176,6 +227,32 @@ app.get('/api/astra/health', (_req, res) => {
   res.json({ ok: true, service: 'astra', time: new Date().toISOString() });
 });
 
+app.get('/api/astra/profile', (_req, res) => {
+  res.json({ ok: true, wakeProfile: state.wakeProfile || 'bully' });
+});
+
+app.post('/api/astra/profile', (req, res) => {
+  const allowed = ['gentle', 'normal', 'bully', 'nuclear'];
+  const wakeProfile = String(req.body?.wakeProfile || '').toLowerCase();
+  if (!allowed.includes(wakeProfile)) {
+    return res.status(400).json({ ok: false, error: 'Invalid wakeProfile' });
+  }
+  state.wakeProfile = wakeProfile;
+  saveState(state);
+  res.json({ ok: true, wakeProfile });
+});
+
+app.post('/api/astra/memory', (req, res) => {
+  const text = String(req.body?.text || '').trim().slice(0, 220);
+  if (!text) return res.status(400).json({ ok: false, error: 'Missing text' });
+  const mem = loadPersonalMemory();
+  mem.notes = mem.notes || [];
+  mem.notes.push(text);
+  mem.notes = mem.notes.slice(-100);
+  savePersonalMemory(mem);
+  res.json({ ok: true, saved: text });
+});
+
 app.post('/api/wakeup/fire', async (_req, res) => {
   try {
     const result = await fireWakeup('manual');
@@ -189,6 +266,7 @@ app.post('/api/wakeup/ack', (_req, res) => {
   state.streak += 1;
   state.lastAckAt = new Date().toISOString();
   state.pendingWake = false;
+  state.pendingWakeCount = 0;
   if (punishmentTimer) clearTimeout(punishmentTimer);
   saveState(state);
   res.json({ ok: true, streak: state.streak });

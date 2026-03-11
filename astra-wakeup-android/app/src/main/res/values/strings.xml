@@ -1,4 +1,11 @@
 <resources>
     <string name="app_name">Astra</string>
     <string name="wake_title">Wake up, Epic.</string>
+
+    <string-array name="wake_profiles">
+        <item>gentle</item>
+        <item>normal</item>
+        <item>bully</item>
+        <item>nuclear</item>
+    </string-array>
 </resources>

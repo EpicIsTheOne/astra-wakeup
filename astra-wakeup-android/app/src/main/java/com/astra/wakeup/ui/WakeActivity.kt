@@ -106,13 +106,16 @@ class WakeActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun loadDynamicLineAndSpeak(punishment: Boolean) {
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         val apiUrl = prefs.getString("api_url", "") ?: ""
+        val wakeProfile = prefs.getString("wake_profile", "bully") ?: "bully"
 
         Thread {
-            val line = WakeMessageClient.fetchLine(apiUrl, punishment)
-                ?: if (punishment) punishmentShots.random() else fallbackLines.random()
+            val result = WakeMessageClient.fetchLineResult(apiUrl, punishment, wakeProfile)
+            val line = result?.line ?: if (punishment) punishmentShots.random() else fallbackLines.random()
+            val mission = result?.mission
 
             runOnUiThread {
-                findViewById<TextView>(R.id.tvLine).text = line
+                val display = if (!mission.isNullOrBlank() && !punishment) "$line\n\nMission: $mission" else line
+                findViewById<TextView>(R.id.tvLine).text = display
                 speak(line)
             }
         }.start()

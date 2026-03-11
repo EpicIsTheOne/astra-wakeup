@@ -35,6 +35,18 @@
         android:singleLine="true"
         android:text="http://72.60.29.204:8787/api/astra" />
 
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Wake profile" />
+
+    <Spinner
+        android:id="@+id/spWakeProfile"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/wake_profiles" />
+
     <CheckBox
         android:id="@+id/cbRandomSfx"
         android:layout_width="wrap_content"

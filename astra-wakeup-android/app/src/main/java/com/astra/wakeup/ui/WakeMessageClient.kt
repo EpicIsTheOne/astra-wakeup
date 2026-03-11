@@ -6,8 +6,10 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
+data class WakeLineResult(val line: String? = null, val mission: String? = null)
+
 object WakeMessageClient {
-    fun fetchLine(apiUrl: String, punishment: Boolean): String? {
+    fun fetchLineResult(apiUrl: String, punishment: Boolean, wakeProfile: String? = null): WakeLineResult? {
         if (apiUrl.isBlank()) return null
         return runCatching {
             val conn = URL(ApiEndpoints.line(apiUrl)).openConnection() as HttpURLConnection
@@ -20,11 +22,20 @@ object WakeMessageClient {
             val body = JSONObject().apply {
                 put("punishment", punishment)
                 put("user", "Epic")
+                if (!wakeProfile.isNullOrBlank()) put("wakeProfile", wakeProfile)
             }
 
             OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
             val text = BufferedReader(conn.inputStream.reader()).use { it.readText() }
-            JSONObject(text).optString("line").takeIf { it.isNotBlank() }
+            val json = JSONObject(text)
+            WakeLineResult(
+                line = json.optString("line").takeIf { it.isNotBlank() },
+                mission = json.optString("mission").takeIf { it.isNotBlank() }
+            )
         }.getOrNull()
+    }
+
+    fun fetchLine(apiUrl: String, punishment: Boolean): String? {
+        return fetchLineResult(apiUrl, punishment)?.line
     }
 }
