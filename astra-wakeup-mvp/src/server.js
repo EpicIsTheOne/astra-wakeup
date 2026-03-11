@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import express from 'express';
 import cron from 'node-cron';
 
@@ -253,6 +254,33 @@ app.get('/api/astra/metrics', (_req, res) => {
     memoryCount: (mem.notes || []).length,
     lastWakeAt: state.lastWakeAt || null,
     lastAckAt: state.lastAckAt || null
+  });
+});
+
+app.get('/api/astra/calendar', (_req, res) => {
+  let jobs = [];
+  try {
+    const raw = execFileSync('openclaw', ['cron', 'list', '--json'], { encoding: 'utf8' });
+    const parsed = JSON.parse(raw);
+    jobs = (parsed.jobs || []).map((j) => ({
+      id: j.id,
+      name: j.name,
+      enabled: j.enabled,
+      schedule: j.schedule,
+      nextRunAtMs: j.state?.nextRunAtMs || null,
+      lastRunAtMs: j.state?.lastRunAtMs || null,
+      lastStatus: j.state?.lastStatus || null
+    }));
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: `cron list failed: ${String(e.message || e)}` });
+  }
+
+  res.json({
+    ok: true,
+    now: new Date().toISOString(),
+    wakeCron: cfg.wakeCron,
+    wakeTz: cfg.tz,
+    jobs
   });
 });
 

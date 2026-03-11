@@ -34,6 +34,13 @@
         android:text="Memory Manager" />
 
     <Button
+        android:id="@+id/btnOpenCalendar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Calendar / Cron" />
+
+    <Button
         android:id="@+id/btnReleaseNotes"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -47,6 +47,10 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, MemoryActivity::class.java))
         }
 
+        findViewById<Button>(R.id.btnOpenCalendar).setOnClickListener {
+            startActivity(Intent(this, CalendarActivity::class.java))
+        }
+
         findViewById<Button>(R.id.btnReleaseNotes).setOnClickListener {
             val apiUrl = etApiUrl.text.toString().trim()
             Thread {
