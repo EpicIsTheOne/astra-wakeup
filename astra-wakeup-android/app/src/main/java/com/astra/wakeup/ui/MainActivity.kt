@@ -51,6 +51,10 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, CalendarActivity::class.java))
         }
 
+        findViewById<Button>(R.id.btnOpenAnalytics).setOnClickListener {
+            startActivity(Intent(this, AnalyticsActivity::class.java))
+        }
+
         findViewById<Button>(R.id.btnReleaseNotes).setOnClickListener {
             val apiUrl = etApiUrl.text.toString().trim()
             Thread {

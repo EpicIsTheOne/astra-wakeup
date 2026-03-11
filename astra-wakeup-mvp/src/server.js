@@ -139,6 +139,22 @@ function schedulePunishment() {
   }, min * 60 * 1000);
 }
 
+function appendWakeEvent(event) {
+  const p = path.resolve('data/wake-events.jsonl');
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.appendFileSync(p, JSON.stringify({ at: new Date().toISOString(), ...event }) + '\n');
+}
+
+function readWakeEvents(limit = 200) {
+  const p = path.resolve('data/wake-events.jsonl');
+  try {
+    const lines = fs.readFileSync(p, 'utf8').trim().split('\n').filter(Boolean);
+    return lines.slice(-limit).map((l) => JSON.parse(l));
+  } catch {
+    return [];
+  }
+}
+
 async function fireWakeup(reason = 'scheduled') {
   const mode = ['flirty', 'savage', 'gremlin'][Math.floor(Math.random() * 3)];
   const line = buildWakeLine(cfg.wakeUserName, mode);
@@ -156,6 +172,7 @@ async function fireWakeup(reason = 'scheduled') {
   state.pendingWake = true;
   state.pendingWakeCount = reason === 'punishment' ? (state.pendingWakeCount || 0) + 1 : 0;
   saveState(state);
+  appendWakeEvent({ type: 'wake', reason, mode, line });
 
   // Only schedule one follow-up blast; avoid infinite punishment loops.
   if (reason !== 'punishment') schedulePunishment();
@@ -284,6 +301,22 @@ app.get('/api/astra/calendar', (_req, res) => {
   });
 });
 
+app.get('/api/astra/analytics', (_req, res) => {
+  const events = readWakeEvents(300);
+  const wakes = events.filter((e) => e.type === 'wake');
+  const acks = events.filter((e) => e.type === 'ack');
+  const recent = events.slice(-30);
+  res.json({
+    ok: true,
+    totals: {
+      wakeEvents: wakes.length,
+      ackEvents: acks.length,
+      ackRate: wakes.length ? Number((acks.length / wakes.length).toFixed(2)) : 0
+    },
+    recent
+  });
+});
+
 app.post('/api/astra/log', (req, res) => {
   const level = String(req.body?.level || 'info').toLowerCase();
   const message = String(req.body?.message || '').slice(0, 500);
@@ -370,6 +403,7 @@ app.post('/api/wakeup/ack', (_req, res) => {
   state.pendingWakeCount = 0;
   if (punishmentTimer) clearTimeout(punishmentTimer);
   saveState(state);
+  appendWakeEvent({ type: 'ack', streak: state.streak });
   res.json({ ok: true, streak: state.streak });
 });
 
