@@ -63,4 +63,16 @@ object TaskStorage {
         }
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().putString(KEY, arr.toString()).apply()
     }
+
+    fun upsert(context: Context, task: Task) {
+        val tasks = list(context).filterNot { it.id == task.id }.toMutableList()
+        tasks += task
+        save(context, tasks)
+    }
+
+    fun delete(context: Context, id: String) {
+        save(context, list(context).filterNot { it.id == id })
+    }
+
+    fun get(context: Context, id: String): Task? = list(context).firstOrNull { it.id == id }
 }

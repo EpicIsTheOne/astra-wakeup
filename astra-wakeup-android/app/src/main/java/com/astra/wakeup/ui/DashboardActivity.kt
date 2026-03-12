@@ -29,14 +29,30 @@ class DashboardActivity : AppCompatActivity() {
                 "${fmt.format(Date(it.atMs))} [${it.level}] ${it.message}"
             }
 
+            fun bar(n: Int, scale: Int = 2): String {
+                val blocks = (n * scale).coerceAtMost(30)
+                return "█".repeat(blocks.coerceAtLeast(0))
+            }
+
+            val totalRules = brain.getInt("total_rules", 0)
+            val contextRules = brain.getInt("context_rules", 0)
+            val taskRules = brain.getInt("task_rules", 0)
+            val cronRules = brain.getInt("cron_rules", 0)
+
             val txt = buildString {
                 appendLine("Brain status")
                 appendLine("- last event: ${brain.getString("last_event", "-")}")
                 appendLine("- last decision: ${brain.getString("last_decision", "-")}")
-                appendLine("- total rules: ${brain.getInt("total_rules", 0)}")
-                appendLine("- context rules: ${brain.getInt("context_rules", 0)}")
-                appendLine("- task rules: ${brain.getInt("task_rules", 0)}")
-                appendLine("- cron rules: ${brain.getInt("cron_rules", 0)}")
+                appendLine("- total rules: $totalRules")
+                appendLine("- context rules: $contextRules")
+                appendLine("- task rules: $taskRules")
+                appendLine("- cron rules: $cronRules")
+                appendLine()
+                appendLine("Rule chart")
+                appendLine("context  ${bar(contextRules)} $contextRules")
+                appendLine("tasks    ${bar(taskRules)} $taskRules")
+                appendLine("cron     ${bar(cronRules)} $cronRules")
+                appendLine("total    ${bar(totalRules, 1)} $totalRules")
                 appendLine()
                 appendLine("Runtime")
                 appendLine("- personality: ${astra.getString("personality_mode", "coach")}")

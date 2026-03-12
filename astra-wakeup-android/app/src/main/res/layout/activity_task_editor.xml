@@ -36,11 +36,65 @@
         android:layout_height="wrap_content"
         android:hint="Speech text step" />
 
-    <Button
-        android:id="@+id/btnSaveTask"
+    <EditText
+        android:id="@+id/etTaskNotify"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Save Task" />
+        android:hint="Notification text step (optional)" />
+
+    <Spinner
+        android:id="@+id/spTaskPersonality"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/personality_modes" />
+
+    <EditText
+        android:id="@+id/etDelaySpeechMs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Speech delay ms (optional)"
+        android:inputType="number" />
+
+    <EditText
+        android:id="@+id/etDelayNotifyMs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Notify delay ms (optional)"
+        android:inputType="number" />
+
+    <EditText
+        android:id="@+id/etDelayPersonaMs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Personality delay ms (optional)"
+        android:inputType="number" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnLoadTask"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Load" />
+
+        <Button
+            android:id="@+id/btnDeleteTask"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Delete" />
+
+        <Button
+            android:id="@+id/btnSaveTask"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Save" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/tvTasks"

@@ -44,4 +44,12 @@
         <item>warn</item>
         <item>error</item>
     </string-array>
+
+    <string-array name="personality_modes">
+        <item>coach</item>
+        <item>sweet</item>
+        <item>bully</item>
+        <item>radio</item>
+        <item>silent</item>
+    </string-array>
 </resources>
