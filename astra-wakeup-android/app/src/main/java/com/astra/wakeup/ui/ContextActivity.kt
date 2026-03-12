@@ -9,6 +9,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.astra.wakeup.R
+import com.astra.wakeup.brain.AstraBrainService
 import java.util.UUID
 
 class ContextActivity : AppCompatActivity() {
@@ -112,7 +113,8 @@ class ContextActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnStartContext).setOnClickListener {
             startService(Intent(this, ContextOrchestratorService::class.java))
-            Toast.makeText(this, "Context service started", Toast.LENGTH_SHORT).show()
+            startService(Intent(this, AstraBrainService::class.java))
+            Toast.makeText(this, "Context + Brain services started", Toast.LENGTH_SHORT).show()
         }
 
         refresh()
