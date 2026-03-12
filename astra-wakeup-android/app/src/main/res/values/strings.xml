@@ -25,4 +25,15 @@
         <item>goal</item>
         <item>misc</item>
     </string-array>
+
+    <string-array name="context_triggers">
+        <item>TIME_TICK</item>
+        <item>PHONE_UNLOCK</item>
+        <item>CHARGING_CHANGED</item>
+        <item>HEADPHONE_CHANGED</item>
+        <item>CALENDAR_EVENT_STARTING</item>
+        <item>LOCATION_ENTER</item>
+        <item>ALARM_DISMISSED</item>
+        <item>ALARM_TRIGGERED</item>
+    </string-array>
 </resources>

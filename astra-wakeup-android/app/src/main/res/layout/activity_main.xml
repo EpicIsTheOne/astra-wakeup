@@ -48,6 +48,13 @@
         android:text="Wake Analytics" />
 
     <Button
+        android:id="@+id/btnOpenContext"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Context Engine" />
+
+    <Button
         android:id="@+id/btnReleaseNotes"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

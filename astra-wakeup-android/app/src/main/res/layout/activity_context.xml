@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Astra Context Engine"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/etRuleId"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Rule ID (blank = create)" />
+
+    <EditText
+        android:id="@+id/etRuleName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Rule name" />
+
+    <Spinner
+        android:id="@+id/spRuleTrigger"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:entries="@array/context_triggers" />
+
+    <EditText
+        android:id="@+id/etRuleConditions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="conditions e.g. after_alarm=30;time_range=06:00-08:00" />
+
+    <EditText
+        android:id="@+id/etRuleActions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="actions e.g. speak:Wake up|change_personality:coach" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button
+            android:id="@+id/btnRuleSave"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Save" />
+        <Button
+            android:id="@+id/btnRuleToggle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Enable/Disable" />
+        <Button
+            android:id="@+id/btnRuleTest"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Test" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnStartContext"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Start Context Service" />
+
+    <TextView
+        android:id="@+id/tvRules"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:text="Loading rules..."
+        android:textSize="13sp" />
+</LinearLayout>

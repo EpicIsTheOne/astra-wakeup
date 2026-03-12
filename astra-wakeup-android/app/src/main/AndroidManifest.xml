@@ -45,6 +45,15 @@
             android:exported="false" />
 
         <activity
+            android:name=".ui.ContextActivity"
+            android:exported="false" />
+
+        <service
+            android:name=".ui.ContextOrchestratorService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <activity
             android:name=".ui.MainActivity"
             android:exported="true">
             <intent-filter>
