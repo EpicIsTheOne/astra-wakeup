@@ -10,6 +10,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.astra.wakeup.R
 import com.astra.wakeup.brain.actions.ActionExecutor
+import com.astra.wakeup.brain.automation.AutomationHub
 import com.astra.wakeup.brain.memory.SharedPrefsMemoryStore
 import com.astra.wakeup.brain.perception.EventBus
 import com.astra.wakeup.brain.perception.SignalCollectors
@@ -24,6 +25,8 @@ import kotlinx.coroutines.launch
 class AstraBrainService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var collectors: SignalCollectors
+    private var lastEvent: String = "-"
+    private var lastDecision: String = "-"
 
     override fun onCreate() {
         super.onCreate()
@@ -42,11 +45,24 @@ class AstraBrainService : Service() {
         val memory = SharedPrefsMemoryStore(this)
         val reasoner = Reasoner(memory)
         val executor = ActionExecutor(this)
+        val hub = AutomationHub(this, executor)
 
         scope.launch {
             EventBus.events.collectLatest { event ->
+                lastEvent = event.type
                 val decision = reasoner.decide(event)
+                lastDecision = decision.reason
                 decision.actions.forEach { executor.execute(it) }
+                hub.onEvent(event)
+                val st = hub.state(lastEvent, lastDecision)
+                getSharedPreferences("astra_brain", MODE_PRIVATE).edit()
+                    .putString("last_event", st.lastEvent)
+                    .putString("last_decision", st.lastDecision)
+                    .putInt("total_rules", st.totalRules)
+                    .putInt("context_rules", st.contextRules)
+                    .putInt("task_rules", st.taskRules)
+                    .putInt("cron_rules", st.cronRules)
+                    .apply()
             }
         }
     }
