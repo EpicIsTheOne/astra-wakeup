@@ -87,27 +87,57 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:hint="OpenClaw Astra API URL"
+        android:hint="OpenClaw URL"
         android:singleLine="true"
         android:text="http://72.60.29.204:8787/api/astra" />
 
-    <EditText
-        android:id="@+id/etGatewayToken"
+    <TextView
+        android:id="@+id/tvConnectHint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:hint="Gateway shared token (optional)"
-        android:inputType="textPassword"
-        android:singleLine="true" />
+        android:text="Tap Connect this phone. If approval is needed, ask Astra to approve the pending Android pairing request."
+        android:textSize="13sp" />
 
-    <EditText
-        android:id="@+id/etBootstrapToken"
+    <Button
+        android:id="@+id/btnConnectGateway"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="Connect this phone" />
+
+    <Button
+        android:id="@+id/btnToggleAdvancedGateway"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:hint="Gateway bootstrap token (optional)"
-        android:inputType="textPassword"
-        android:singleLine="true" />
+        android:text="Show advanced gateway options" />
+
+    <LinearLayout
+        android:id="@+id/layoutGatewayAdvanced"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/etGatewayToken"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Gateway shared token (optional)"
+            android:inputType="textPassword"
+            android:singleLine="true" />
+
+        <EditText
+            android:id="@+id/etBootstrapToken"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Gateway bootstrap token (optional)"
+            android:inputType="textPassword"
+            android:singleLine="true" />
+    </LinearLayout>
 
     <TextView
         android:layout_width="wrap_content"
@@ -190,34 +220,42 @@
         android:text="chat: -"
         android:textSize="12sp" />
 
-    <TextView
-        android:id="@+id/tvGatewayDebug"
+    <LinearLayout
+        android:id="@+id/layoutGatewayDebug"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="gateway debug: -"
-        android:textSize="12sp" />
+        android:orientation="vertical"
+        android:visibility="gone">
 
-    <Button
-        android:id="@+id/btnProbeGateway"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Probe gateway auth" />
+        <TextView
+            android:id="@+id/tvGatewayDebug"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="gateway debug: -"
+            android:textSize="12sp" />
 
-    <Button
-        android:id="@+id/btnClearDeviceToken"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Clear device token" />
+        <Button
+            android:id="@+id/btnProbeGateway"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Probe gateway auth" />
 
-    <Button
-        android:id="@+id/btnClearGatewayAuth"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Clear all gateway auth" />
+        <Button
+            android:id="@+id/btnClearDeviceToken"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Clear device token" />
+
+        <Button
+            android:id="@+id/btnClearGatewayAuth"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Clear all gateway auth" />
+    </LinearLayout>
 
     <Button
         android:id="@+id/btnSchedule"

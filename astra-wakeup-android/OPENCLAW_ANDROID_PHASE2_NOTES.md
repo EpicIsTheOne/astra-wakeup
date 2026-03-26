@@ -10,6 +10,7 @@
   - challenge-bound `device` signature payload including `nonce`
 - Persists `hello-ok.auth.deviceToken` and basic server/method/event metadata from the hello payload.
 - Main settings screen now stores optional shared gateway token + bootstrap token for direct OpenClaw auth flows.
+- Simplified main UI into a normal-looking connect flow: external OpenClaw URL is prefilled, primary action is now `Connect this phone`, and advanced token/debug controls are hidden behind an advanced toggle.
 - Added a lightweight in-app gateway debug panel showing ws URL, auth summary, device identity, and last error.
 - Added direct test buttons for gateway probe, clear device token, and clear all gateway auth.
 - API status output now classifies common auth failures (`pairing required`, token mismatch, invalid bootstrap token, bad device signature) into user-facing guidance.

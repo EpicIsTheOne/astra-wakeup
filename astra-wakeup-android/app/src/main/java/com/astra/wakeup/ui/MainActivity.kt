@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -25,6 +26,8 @@ class MainActivity : AppCompatActivity() {
         val cbAstraFm = findViewById<CheckBox>(R.id.cbAstraFm)
         val etGatewayToken = findViewById<EditText>(R.id.etGatewayToken)
         val etBootstrapToken = findViewById<EditText>(R.id.etBootstrapToken)
+        val layoutGatewayAdvanced = findViewById<LinearLayout>(R.id.layoutGatewayAdvanced)
+        val layoutGatewayDebug = findViewById<LinearLayout>(R.id.layoutGatewayDebug)
         val spWakeProfile = findViewById<Spinner>(R.id.spWakeProfile)
         val tvVersion = findViewById<TextView>(R.id.tvVersion)
         val tvApiStatus = findViewById<TextView>(R.id.tvApiStatus)
@@ -34,7 +37,9 @@ class MainActivity : AppCompatActivity() {
         val tvChatChip = findViewById<TextView>(R.id.tvChatChip)
         val tvGatewayDebug = findViewById<TextView>(R.id.tvGatewayDebug)
 
-        etApiUrl.setText(prefs.getString("api_url", "http://72.60.29.204:8787/api/astra"))
+        val defaultExternalUrl = "http://72.60.29.204:8787/api/astra"
+        val savedApiUrl = prefs.getString("api_url", null)?.takeIf { it.isNotBlank() }
+        etApiUrl.setText(savedApiUrl ?: defaultExternalUrl)
         etGatewayToken.setText(prefs.getString("gateway_token", "") ?: "")
         etBootstrapToken.setText(prefs.getString("gateway_bootstrap_token", "") ?: "")
         val pkgInfo = packageManager.getPackageInfo(packageName, 0)
@@ -45,6 +50,16 @@ class MainActivity : AppCompatActivity() {
         val profile = prefs.getString("wake_profile", "bully") ?: "bully"
         val idx = resources.getStringArray(R.array.wake_profiles).indexOf(profile).coerceAtLeast(0)
         spWakeProfile.setSelection(idx)
+
+        fun setAdvancedVisible(visible: Boolean) {
+            layoutGatewayAdvanced.visibility = if (visible) android.view.View.VISIBLE else android.view.View.GONE
+            layoutGatewayDebug.visibility = if (visible) android.view.View.VISIBLE else android.view.View.GONE
+            findViewById<Button>(R.id.btnToggleAdvancedGateway).text = if (visible) {
+                "Hide advanced gateway options"
+            } else {
+                "Show advanced gateway options"
+            }
+        }
 
         fun refreshGatewayDebug(lastError: String? = null) {
             val config = OpenClawGatewayConfig.fromContext(this)
@@ -71,7 +86,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        setAdvancedVisible(false)
         refreshGatewayDebug()
+
+        findViewById<Button>(R.id.btnToggleAdvancedGateway).setOnClickListener {
+            setAdvancedVisible(layoutGatewayAdvanced.visibility != android.view.View.VISIBLE)
+        }
 
         findViewById<Button>(R.id.btnOpenChat).setOnClickListener {
             startActivity(Intent(this, ChatActivity::class.java))
@@ -134,11 +154,16 @@ class MainActivity : AppCompatActivity() {
             Thread {
                 val (ok, msg) = ApiProfileClient.setProfile(apiUrl, wakeProfile)
                 runOnUiThread {
+                    val usingSimpleConnect = gatewayToken.isBlank() && bootstrapToken.isBlank()
                     val authSaved = buildList {
                         if (gatewayToken.isNotBlank()) add("shared token")
                         if (bootstrapToken.isNotBlank()) add("bootstrap token")
                     }.joinToString()
-                    val suffix = if (authSaved.isBlank()) "" else " | auth: $authSaved"
+                    val suffix = when {
+                        authSaved.isNotBlank() -> " | auth: $authSaved"
+                        usingSimpleConnect -> " | simple connect mode"
+                        else -> ""
+                    }
                     val m = if (ok) "Saved (${wakeProfile})$suffix" else "Saved local, server profile failed: $msg$suffix"
                     refreshGatewayDebug()
                     Toast.makeText(this, m, Toast.LENGTH_SHORT).show()
@@ -166,8 +191,11 @@ class MainActivity : AppCompatActivity() {
             }.start()
         }
 
-        findViewById<Button>(R.id.btnProbeGateway).setOnClickListener {
-            tvApiStatus.text = "API status: probing gateway..."
+        fun connectThisPhone() {
+            val apiUrl = etApiUrl.text.toString().trim()
+            prefs.edit().putString("api_url", apiUrl).apply()
+            tvApiStatus.text = "API status: connecting this phone..."
+            tvApiDetails.text = ""
             Thread {
                 val result = OpenClawChatClient().probe(this)
                 runOnUiThread {
@@ -175,17 +203,31 @@ class MainActivity : AppCompatActivity() {
                         val server = session.helloPayload.optJSONObject("server")
                         val version = server?.optString("version").orEmpty().ifBlank { "unknown" }
                         val connId = server?.optString("connId").orEmpty().ifBlank { "?" }
-                        tvApiStatus.text = "API status: gateway probe ok ✅"
-                        tvApiDetails.text = "serverVersion=$version, connId=$connId"
+                        tvApiStatus.text = "API status: phone connected ✅"
+                        tvApiDetails.text = "Connected to OpenClaw. serverVersion=$version, connId=$connId"
                         refreshGatewayDebug()
                     }.onFailure { err ->
-                        val msg = err.message ?: "probe failed"
-                        tvApiStatus.text = "API status: gateway probe failed ❌"
-                        tvApiDetails.text = OpenClawGatewayDiagnostics.describeStatus(this, msg)
+                        val msg = err.message ?: "connect failed"
+                        val issue = OpenClawGatewayDiagnostics.classify(msg)
+                        if (issue?.code == "PAIRING_REQUIRED") {
+                            tvApiStatus.text = "API status: waiting for approval ⏳"
+                            tvApiDetails.text = issue.guidance
+                        } else {
+                            tvApiStatus.text = "API status: connection failed ❌"
+                            tvApiDetails.text = OpenClawGatewayDiagnostics.describeStatus(this, msg)
+                        }
                         refreshGatewayDebug(msg)
                     }
                 }
             }.start()
+        }
+
+        findViewById<Button>(R.id.btnConnectGateway).setOnClickListener {
+            connectThisPhone()
+        }
+
+        findViewById<Button>(R.id.btnProbeGateway).setOnClickListener {
+            connectThisPhone()
         }
 
         findViewById<Button>(R.id.btnClearDeviceToken).setOnClickListener {
