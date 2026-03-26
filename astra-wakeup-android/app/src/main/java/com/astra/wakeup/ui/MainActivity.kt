@@ -9,7 +9,6 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.astra.wakeup.R
 import com.astra.wakeup.alarm.AlarmScheduler
@@ -36,14 +35,17 @@ class MainActivity : AppCompatActivity() {
         val tvLineChip = findViewById<TextView>(R.id.tvLineChip)
         val tvChatChip = findViewById<TextView>(R.id.tvChatChip)
         val tvGatewayDebug = findViewById<TextView>(R.id.tvGatewayDebug)
+        val btnToggleAdvancedGateway = findViewById<Button>(R.id.btnToggleAdvancedGateway)
 
         val defaultExternalUrl = "http://72.60.29.204:8787/api/astra"
         val savedApiUrl = prefs.getString("api_url", null)?.takeIf { it.isNotBlank() }
         etApiUrl.setText(savedApiUrl ?: defaultExternalUrl)
         etGatewayToken.setText(prefs.getString("gateway_token", "") ?: "")
         etBootstrapToken.setText(prefs.getString("gateway_bootstrap_token", "") ?: "")
+
         val pkgInfo = packageManager.getPackageInfo(packageName, 0)
-        tvVersion.text = "version: ${pkgInfo.versionName}"
+        tvVersion.text = "version ${pkgInfo.versionName}"
+
         cbRandomSfx.isChecked = prefs.getBoolean("random_sfx", true)
         cbPunish.isChecked = prefs.getBoolean("punish", true)
         cbAstraFm.isChecked = prefs.getBoolean("astra_fm", true)
@@ -54,7 +56,7 @@ class MainActivity : AppCompatActivity() {
         fun setAdvancedVisible(visible: Boolean) {
             layoutGatewayAdvanced.visibility = if (visible) android.view.View.VISIBLE else android.view.View.GONE
             layoutGatewayDebug.visibility = if (visible) android.view.View.VISIBLE else android.view.View.GONE
-            findViewById<Button>(R.id.btnToggleAdvancedGateway).text = if (visible) {
+            btnToggleAdvancedGateway.text = if (visible) {
                 "Hide advanced gateway options"
             } else {
                 "Show advanced gateway options"
@@ -86,57 +88,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        setAdvancedVisible(false)
-        refreshGatewayDebug()
-
-        findViewById<Button>(R.id.btnToggleAdvancedGateway).setOnClickListener {
-            setAdvancedVisible(layoutGatewayAdvanced.visibility != android.view.View.VISIBLE)
-        }
-
-        findViewById<Button>(R.id.btnOpenChat).setOnClickListener {
-            startActivity(Intent(this, ChatActivity::class.java))
-        }
-
-        findViewById<Button>(R.id.btnOpenMemory).setOnClickListener {
-            startActivity(Intent(this, MemoryActivity::class.java))
-        }
-
-        findViewById<Button>(R.id.btnOpenCalendar).setOnClickListener {
-            startActivity(Intent(this, CalendarActivity::class.java))
-        }
-
-        findViewById<Button>(R.id.btnOpenAnalytics).setOnClickListener {
-            startActivity(Intent(this, AnalyticsActivity::class.java))
-        }
-
-        findViewById<Button>(R.id.btnOpenContext).setOnClickListener {
-            startActivity(Intent(this, ContextActivity::class.java))
-        }
-
-        findViewById<Button>(R.id.btnOpenDashboard).setOnClickListener {
-            startActivity(Intent(this, DashboardActivity::class.java))
-        }
-
-        findViewById<Button>(R.id.btnOpenTasks).setOnClickListener {
-            startActivity(Intent(this, TaskEditorActivity::class.java))
-        }
-
-        findViewById<Button>(R.id.btnReleaseNotes).setOnClickListener {
-            val apiUrl = etApiUrl.text.toString().trim()
-            Thread {
-                val notes = ApiOpsClient.releaseNotes(apiUrl)
-                val metrics = ApiOpsClient.metrics(apiUrl)
-                runOnUiThread {
-                    AlertDialog.Builder(this)
-                        .setTitle("Astra Release Notes")
-                        .setMessage("$notes\n\nMetrics: $metrics")
-                        .setPositiveButton("OK", null)
-                        .show()
-                }
-            }.start()
-        }
-
-        findViewById<Button>(R.id.btnSave).setOnClickListener {
+        fun saveMainSettings() {
             val apiUrl = etApiUrl.text.toString().trim()
             val gatewayToken = etGatewayToken.text.toString().trim()
             val bootstrapToken = etBootstrapToken.text.toString().trim()
@@ -150,30 +102,11 @@ class MainActivity : AppCompatActivity() {
                 .putBoolean("astra_fm", cbAstraFm.isChecked)
                 .putString("wake_profile", wakeProfile)
                 .apply()
-
-            Thread {
-                val (ok, msg) = ApiProfileClient.setProfile(apiUrl, wakeProfile)
-                runOnUiThread {
-                    val usingSimpleConnect = gatewayToken.isBlank() && bootstrapToken.isBlank()
-                    val authSaved = buildList {
-                        if (gatewayToken.isNotBlank()) add("shared token")
-                        if (bootstrapToken.isNotBlank()) add("bootstrap token")
-                    }.joinToString()
-                    val suffix = when {
-                        authSaved.isNotBlank() -> " | auth: $authSaved"
-                        usingSimpleConnect -> " | simple connect mode"
-                        else -> ""
-                    }
-                    val m = if (ok) "Saved (${wakeProfile})$suffix" else "Saved local, server profile failed: $msg$suffix"
-                    refreshGatewayDebug()
-                    Toast.makeText(this, m, Toast.LENGTH_SHORT).show()
-                }
-            }.start()
         }
 
-        findViewById<Button>(R.id.btnCheckApi).setOnClickListener {
+        fun runStatusCheck() {
             val apiUrl = etApiUrl.text.toString().trim()
-            tvApiStatus.text = "API status: checking..."
+            tvApiStatus.text = "Status: checking connection..."
             tvApiDetails.text = ""
             tvHealthChip.text = "health: ..."
             tvLineChip.text = "line: ..."
@@ -181,7 +114,7 @@ class MainActivity : AppCompatActivity() {
             Thread {
                 val suite = ApiStatusClient.checkSuite(this, apiUrl)
                 runOnUiThread {
-                    tvApiStatus.text = "API status: ${suite.summary}"
+                    tvApiStatus.text = if (suite.ok) "Status: ready ✅" else "Status: needs attention"
                     tvApiDetails.text = suite.details
                     tvHealthChip.text = "health: ${if (suite.healthOk) "✅" else "❌"}"
                     tvLineChip.text = "line: ${if (suite.lineOk) "✅" else "❌"}"
@@ -192,9 +125,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         fun connectThisPhone() {
-            val apiUrl = etApiUrl.text.toString().trim()
-            prefs.edit().putString("api_url", apiUrl).apply()
-            tvApiStatus.text = "API status: connecting this phone..."
+            saveMainSettings()
+            tvApiStatus.text = "Status: connecting this phone..."
             tvApiDetails.text = ""
             Thread {
                 val result = OpenClawChatClient().probe(this)
@@ -203,17 +135,19 @@ class MainActivity : AppCompatActivity() {
                         val server = session.helloPayload.optJSONObject("server")
                         val version = server?.optString("version").orEmpty().ifBlank { "unknown" }
                         val connId = server?.optString("connId").orEmpty().ifBlank { "?" }
-                        tvApiStatus.text = "API status: phone connected ✅"
+                        tvApiStatus.text = "Status: phone connected ✅"
                         tvApiDetails.text = "Connected to OpenClaw. serverVersion=$version, connId=$connId"
+                        tvHealthChip.text = "health: ✅"
+                        tvChatChip.text = "chat: ✅"
                         refreshGatewayDebug()
                     }.onFailure { err ->
                         val msg = err.message ?: "connect failed"
                         val issue = OpenClawGatewayDiagnostics.classify(msg)
                         if (issue?.code == "PAIRING_REQUIRED") {
-                            tvApiStatus.text = "API status: waiting for approval ⏳"
+                            tvApiStatus.text = "Status: waiting for approval ⏳"
                             tvApiDetails.text = issue.guidance
                         } else {
-                            tvApiStatus.text = "API status: connection failed ❌"
+                            tvApiStatus.text = "Status: connection failed ❌"
                             tvApiDetails.text = OpenClawGatewayDiagnostics.describeStatus(this, msg)
                         }
                         refreshGatewayDebug(msg)
@@ -222,8 +156,22 @@ class MainActivity : AppCompatActivity() {
             }.start()
         }
 
+        setAdvancedVisible(false)
+        refreshGatewayDebug()
+        runStatusCheck()
+
+        btnToggleAdvancedGateway.setOnClickListener {
+            setAdvancedVisible(layoutGatewayAdvanced.visibility != android.view.View.VISIBLE)
+        }
+
         findViewById<Button>(R.id.btnConnectGateway).setOnClickListener {
             connectThisPhone()
+        }
+
+        findViewById<Button>(R.id.btnSave).setOnClickListener {
+            saveMainSettings()
+            refreshGatewayDebug()
+            Toast.makeText(this, "Saved settings", Toast.LENGTH_SHORT).show()
         }
 
         findViewById<Button>(R.id.btnProbeGateway).setOnClickListener {
@@ -245,12 +193,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnSchedule).setOnClickListener {
+            saveMainSettings()
             AlarmScheduler.scheduleDaily(this, 5, 50)
             Toast.makeText(this, "Scheduled for 5:50 AM ET", Toast.LENGTH_SHORT).show()
         }
 
         findViewById<Button>(R.id.btnTest).setOnClickListener {
+            saveMainSettings()
             startActivity(Intent(this, WakeActivity::class.java))
+        }
+
+        findViewById<Button>(R.id.btnOpenChat).setOnClickListener {
+            startActivity(Intent(this, ChatActivity::class.java))
         }
     }
 }
