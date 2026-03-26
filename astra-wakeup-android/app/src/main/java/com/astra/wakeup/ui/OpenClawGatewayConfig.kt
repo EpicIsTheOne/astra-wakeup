@@ -142,6 +142,3 @@ object OpenClawGatewayAuthStore {
         return "shared=$hasSharedToken bootstrap=$hasBootstrapToken device=$hasDeviceToken role=${role.ifBlank { "?" }}"
     }
 }
-ole.ifBlank { "?" }}"
-    }
-}
