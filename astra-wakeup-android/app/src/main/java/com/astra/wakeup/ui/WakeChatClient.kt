@@ -1,58 +1,38 @@
 package com.astra.wakeup.ui
 
-import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
+import android.content.Context
 
 data class ChatResult(val reply: String? = null, val error: String? = null)
 
 object WakeChatClient {
-    private fun postJson(url: String, body: JSONObject): ChatResult {
-        return runCatching {
-            val conn = URL(url).openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.connectTimeout = 8000
-            conn.readTimeout = 12000
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
+    private val openClawChatClient = OpenClawChatClient()
 
-            OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
-            val code = conn.responseCode
-            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            val text = BufferedReader(stream.reader()).use { it.readText() }
-            if (code !in 200..299) return ChatResult(error = "HTTP $code: ${text.take(120)}")
-            val reply = JSONObject(text).optString("reply").takeIf { it.isNotBlank() }
-            ChatResult(reply = reply, error = if (reply == null) "Empty reply" else null)
-        }.getOrElse { ChatResult(error = it.message ?: "Network error") }
+    fun wakeReply(context: Context, apiUrl: String, userText: String): String? {
+        return wakeReplyDetailed(context, apiUrl, userText).reply
     }
 
-    fun wakeReply(apiUrl: String, userText: String): String? {
-        return wakeReplyDetailed(apiUrl, userText).reply
+    fun wakeReplyDetailed(context: Context, apiUrl: String, userText: String): ChatResult {
+        return chatReplyDetailed(context, apiUrl, userText)
     }
 
-    fun wakeReplyDetailed(apiUrl: String, userText: String): ChatResult {
+    fun chatReply(context: Context, apiUrl: String, userText: String): String? {
+        return chatReplyDetailed(context, apiUrl, userText).reply
+    }
+
+    fun chatReplyDetailed(context: Context, apiUrl: String, userText: String): ChatResult {
         if (apiUrl.isBlank() || userText.isBlank()) return ChatResult(error = "Missing API URL or text")
-        val chatUrl = ApiEndpoints.wakeRespond(apiUrl)
-        val body = JSONObject().apply {
-            put("user", "Epic")
-            put("text", userText)
-        }
-        return postJson(chatUrl, body)
+        val apiConfig = OpenClawGatewayConfig.fromPrefsApiUrl(apiUrl = apiUrl)
+        val config = OpenClawGatewayConfig.fromContext(context).copy(
+            httpBaseUrl = apiConfig.httpBaseUrl,
+            wsUrl = apiConfig.wsUrl
+        )
+        val result = openClawChatClient.chat(context, config, userText)
+        return ChatResult(reply = result.reply, error = result.error)
     }
 
-    fun chatReply(apiUrl: String, userText: String): String? {
-        return chatReplyDetailed(apiUrl, userText).reply
-    }
-
+    @Deprecated("Use the Context-aware overload so device auth and token persistence work")
     fun chatReplyDetailed(apiUrl: String, userText: String): ChatResult {
         if (apiUrl.isBlank() || userText.isBlank()) return ChatResult(error = "Missing API URL or text")
-        val chatUrl = ApiEndpoints.chatRespond(apiUrl)
-        val body = JSONObject().apply {
-            put("user", "Epic")
-            put("text", userText)
-        }
-        return postJson(chatUrl, body)
+        return ChatResult(error = "Context-aware Gateway auth required for Android direct mode")
     }
 }

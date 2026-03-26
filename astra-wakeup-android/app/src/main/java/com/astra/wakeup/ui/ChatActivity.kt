@@ -31,6 +31,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var pendingResumeAfterTts = false
     private var lastInputForResume: EditText? = null
     private var lastChatForResume: TextView? = null
+    private val openClawChatClient = OpenClawChatClient()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,16 +102,17 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun askAstra(text: String, tv: TextView, fromCall: Boolean, remember: Boolean = false) {
-        val prefs = getSharedPreferences("astra", MODE_PRIVATE)
-        val apiUrl = prefs.getString("api_url", "") ?: ""
+        val gatewayConfig = OpenClawGatewayConfig.fromContext(this)
         if (fromCall) setCallStatus("thinking…")
 
         Thread {
             if (remember) {
-                ApiMemoryClient.remember(apiUrl, text, category = "preference")
+                ApiMemoryClient.remember(gatewayConfig.httpBaseUrl, text, category = "preference")
             }
-            val result = WakeChatClient.chatReplyDetailed(apiUrl, text)
-            if (result.error != null) ApiOpsClient.log(apiUrl, "warn", "chatReply error: ${result.error}")
+            val result = openClawChatClient.chat(this, gatewayConfig, text)
+            if (result.error != null) {
+                ApiOpsClient.log(gatewayConfig.httpBaseUrl, "warn", "chatReply error: ${result.error}")
+            }
             val reply = result.reply ?: "Network tantrum: ${result.error ?: "unknown"}"
             runOnUiThread {
                 tv.append("\nAstra: $reply")

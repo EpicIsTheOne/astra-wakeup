@@ -91,6 +91,24 @@
         android:singleLine="true"
         android:text="http://72.60.29.204:8787/api/astra" />
 
+    <EditText
+        android:id="@+id/etGatewayToken"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="Gateway shared token (optional)"
+        android:inputType="textPassword"
+        android:singleLine="true" />
+
+    <EditText
+        android:id="@+id/etBootstrapToken"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="Gateway bootstrap token (optional)"
+        android:inputType="textPassword"
+        android:singleLine="true" />
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -171,6 +189,35 @@
         android:layout_height="wrap_content"
         android:text="chat: -"
         android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tvGatewayDebug"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="gateway debug: -"
+        android:textSize="12sp" />
+
+    <Button
+        android:id="@+id/btnProbeGateway"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Probe gateway auth" />
+
+    <Button
+        android:id="@+id/btnClearDeviceToken"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Clear device token" />
+
+    <Button
+        android:id="@+id/btnClearGatewayAuth"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Clear all gateway auth" />
 
     <Button
         android:id="@+id/btnSchedule"

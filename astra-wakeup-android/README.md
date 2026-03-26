@@ -33,6 +33,17 @@ cd astra-wakeup-android
 APK path:
 `app/build/outputs/apk/debug/app-debug.apk`
 
+## GitHub Actions debug APK
+This repo now includes a GitHub Actions workflow that builds the debug APK on:
+- pushes to `main`
+- pull requests touching Android build/app files
+- manual runs via **Actions > Android Debug APK > Run workflow**
+
+The APK is uploaded as a workflow artifact named:
+`astra-wakeup-debug-apk`
+
+Once the workflow finishes, download it from the run’s **Artifacts** section.
+
 ## Public download link plan
 Once APK is built, upload to one of:
 - GitHub Releases

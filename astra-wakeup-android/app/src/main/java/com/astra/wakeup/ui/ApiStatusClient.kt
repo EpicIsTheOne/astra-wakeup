@@ -1,5 +1,6 @@
 package com.astra.wakeup.ui
 
+import android.content.Context
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -36,16 +37,21 @@ object ApiStatusClient {
         return ok to msg
     }
 
-    fun checkSuite(apiUrl: String): ApiSuiteStatus {
+    fun checkSuite(context: Context, apiUrl: String): ApiSuiteStatus {
         if (apiUrl.isBlank()) return ApiSuiteStatus(false, "offline ❌", "No API URL", false, false, false)
 
         val (hOk, hMsg) = get(ApiEndpoints.health(apiUrl))
         val lineOk = WakeMessageClient.fetchLine(apiUrl, punishment = false) != null
-        val chat = WakeChatClient.chatReplyDetailed(apiUrl, "ping")
+        val chat = WakeChatClient.chatReplyDetailed(context, apiUrl, "ping")
         val chatOk = !chat.reply.isNullOrBlank()
 
         val allOk = hOk && lineOk && chatOk
-        val details = "health=${if (hOk) "ok" else hMsg}, line=${if (lineOk) "ok" else "fail"}, chat=${if (chatOk) "ok" else (chat.error ?: "fail")}".take(180)
+        val chatDetail = if (chatOk) {
+            "ok"
+        } else {
+            OpenClawGatewayDiagnostics.describeStatus(context, chat.error)
+        }
+        val details = "health=${if (hOk) "ok" else hMsg}, line=${if (lineOk) "ok" else "fail"}, chat=$chatDetail".take(240)
         val summary = if (allOk) "connected ✅" else "partial/offline ❌"
         return ApiSuiteStatus(allOk, summary, details, hOk, lineOk, chatOk)
     }
