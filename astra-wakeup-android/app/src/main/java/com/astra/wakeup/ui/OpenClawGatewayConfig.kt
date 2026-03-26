@@ -87,6 +87,7 @@ object OpenClawGatewayAuthStore {
     fun persistHelloAuth(context: Context, helloPayload: org.json.JSONObject) {
         val auth = helloPayload.optJSONObject("auth") ?: return
         val editor = context.getSharedPreferences(ASTRA_PREFS, Context.MODE_PRIVATE).edit()
+        editor.putString("gateway_last_auth_json", auth.toString())
         auth.optString("deviceToken").takeIf { it.isNotBlank() }?.let {
             editor.putString("gateway_device_token", it)
             editor.remove("gateway_bootstrap_token")
@@ -141,4 +142,9 @@ object OpenClawGatewayAuthStore {
         val role = prefs.getString("gateway_last_role", null).orEmpty()
         return "shared=$hasSharedToken bootstrap=$hasBootstrapToken device=$hasDeviceToken role=${role.ifBlank { "?" }}"
     }
+}
+lank { "?" }} lastAuth=${lastAuth.ifBlank { "-" }}"
+    }
+}
+ }
 }
