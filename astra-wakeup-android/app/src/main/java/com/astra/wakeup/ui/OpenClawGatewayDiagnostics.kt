@@ -30,7 +30,7 @@ object OpenClawGatewayDiagnostics {
             "AUTH_TOKEN_MISSING" in message || "token missing" in lower -> GatewayAuthIssue(
                 code = "AUTH_TOKEN_MISSING",
                 summary = "gateway token missing",
-                guidance = "Paste an OpenClaw pairing code, or open advanced settings and enter a shared gateway token or bootstrap token."
+                guidance = "Enter the shared gateway token for this OpenClaw instance, then try again."
             )
             "AUTH_TOKEN_MISMATCH" in message || "gateway token mismatch" in lower -> GatewayAuthIssue(
                 code = "AUTH_TOKEN_MISMATCH",

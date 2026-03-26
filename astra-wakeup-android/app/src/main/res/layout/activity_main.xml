@@ -32,7 +32,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="Wake-up control, chat, and OpenClaw pairing — minus the clutter."
+            android:text="Connect this phone, tune wake behavior, and open chat — without the clutter."
             android:textColor="#CBD5E1"
             android:textSize="15sp" />
 
@@ -57,32 +57,33 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="Paste a pairing code for the easy path, or use the URL field below. If approval is needed, ask Astra to approve the pending Android pairing request."
+                android:text="Use your OpenClaw URL and shared gateway token to unlock chat and wake controls."
                 android:textColor="#CBD5E1"
                 android:textSize="13sp" />
-
-            <EditText
-                android:id="@+id/etPairingCode"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="#0B1220"
-                android:hint="Pairing code (recommended)"
-                android:padding="12dp"
-                android:singleLine="true"
-                android:textColor="#F8FAFC"
-                android:textColorHint="#64748B" />
 
             <EditText
                 android:id="@+id/etApiUrl"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="12dp"
                 android:background="#0B1220"
                 android:hint="OpenClaw URL"
                 android:padding="12dp"
                 android:singleLine="true"
-                android:text="http://72.60.29.204:8787/api/astra"
+                android:text="http://72.60.29.204:18789"
+                android:textColor="#F8FAFC"
+                android:textColorHint="#64748B" />
+
+            <EditText
+                android:id="@+id/etGatewayToken"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="#0B1220"
+                android:hint="Gateway shared token"
+                android:inputType="textPassword"
+                android:padding="12dp"
+                android:singleLine="true"
                 android:textColor="#F8FAFC"
                 android:textColorHint="#64748B" />
 
@@ -95,11 +96,43 @@
                 android:text="Connect this phone"
                 android:textColor="#FFFFFF" />
 
+            <TextView
+                android:id="@+id/tvConnectBanner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="#1E293B"
+                android:padding="14dp"
+                android:text=""
+                android:textColor="#E2E8F0"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvApiStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="This phone is not connected yet"
+                android:textColor="#F8FAFC"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvApiDetails"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Enter your OpenClaw URL and shared gateway token, then tap Connect this phone."
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+
             <Button
                 android:id="@+id/btnToggleAdvancedGateway"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="12dp"
                 android:backgroundTint="#334155"
                 android:text="Show advanced gateway options"
                 android:textColor="#E2E8F0" />
@@ -108,29 +141,17 @@
                 android:id="@+id/layoutGatewayAdvanced"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
                 android:orientation="vertical"
                 android:visibility="gone">
-
-                <EditText
-                    android:id="@+id/etGatewayToken"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:background="#0B1220"
-                    android:hint="Gateway shared token (optional)"
-                    android:inputType="textPassword"
-                    android:padding="12dp"
-                    android:singleLine="true"
-                    android:textColor="#F8FAFC"
-                    android:textColorHint="#64748B" />
 
                 <EditText
                     android:id="@+id/etBootstrapToken"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="2dp"
                     android:background="#0B1220"
-                    android:hint="Gateway bootstrap token (optional)"
+                    android:hint="Bootstrap token (experimental/fallback)"
                     android:inputType="textPassword"
                     android:padding="12dp"
                     android:singleLine="true"
@@ -145,120 +166,81 @@
                     android:backgroundTint="#475569"
                     android:text="Save advanced settings"
                     android:textColor="#FFFFFF" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/tvApiStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Status: not connected"
-                android:textColor="#F8FAFC"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvApiDetails"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text=""
-                android:textColor="#CBD5E1"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/tvConnectBanner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:background="#3F1D3B"
-                android:padding="12dp"
-                android:text=""
-                android:textColor="#FCE7F3"
-                android:textSize="13sp"
-                android:textStyle="bold"
-                android:visibility="gone" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
 
                 <TextView
                     android:id="@+id/tvHealthChip"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="health: -"
+                    android:layout_marginTop="12dp"
+                    android:text="Gateway status: -"
                     android:textColor="#CBD5E1"
                     android:textSize="12sp" />
 
                 <TextView
                     android:id="@+id/tvLineChip"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="line: -"
+                    android:layout_marginTop="4dp"
+                    android:text="Connection state: -"
                     android:textColor="#CBD5E1"
                     android:textSize="12sp" />
 
                 <TextView
                     android:id="@+id/tvChatChip"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="chat: -"
+                    android:layout_marginTop="4dp"
+                    android:text="Chat state: -"
                     android:textColor="#CBD5E1"
                     android:textSize="12sp" />
-            </LinearLayout>
 
-            <LinearLayout
-                android:id="@+id/layoutGatewayDebug"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="vertical"
-                android:visibility="gone">
-
-                <TextView
-                    android:id="@+id/tvGatewayDebug"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="gateway debug: -"
-                    android:textColor="#94A3B8"
-                    android:textSize="12sp" />
-
-                <Button
-                    android:id="@+id/btnProbeGateway"
+                <LinearLayout
+                    android:id="@+id/layoutGatewayDebug"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:backgroundTint="#334155"
-                    android:text="Probe gateway auth"
-                    android:textColor="#E2E8F0" />
+                    android:orientation="vertical">
 
-                <Button
-                    android:id="@+id/btnClearDeviceToken"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:backgroundTint="#334155"
-                    android:text="Clear device token"
-                    android:textColor="#E2E8F0" />
+                    <TextView
+                        android:id="@+id/tvGatewayDebug"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="gateway debug: -"
+                        android:textColor="#94A3B8"
+                        android:textSize="12sp" />
 
-                <Button
-                    android:id="@+id/btnClearGatewayAuth"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:backgroundTint="#7F1D1D"
-                    android:text="Clear all gateway auth"
-                    android:textColor="#FFFFFF" />
+                    <Button
+                        android:id="@+id/btnProbeGateway"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:backgroundTint="#334155"
+                        android:text="Probe gateway auth"
+                        android:textColor="#E2E8F0" />
+
+                    <Button
+                        android:id="@+id/btnClearDeviceToken"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:backgroundTint="#334155"
+                        android:text="Clear device token"
+                        android:textColor="#E2E8F0" />
+
+                    <Button
+                        android:id="@+id/btnClearGatewayAuth"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:backgroundTint="#7F1D1D"
+                        android:text="Clear all gateway auth"
+                        android:textColor="#FFFFFF" />
+                </LinearLayout>
             </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/layoutWakeCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -275,9 +257,18 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/tvWakeHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Connect this phone to enable wake controls."
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="10dp"
                 android:text="Wake profile"
                 android:textColor="#CBD5E1"
                 android:textSize="13sp" />
@@ -331,6 +322,7 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/layoutChatCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -347,10 +339,11 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/tvChatHint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="Chat unlocks after this phone finishes connecting to OpenClaw."
+                android:text="Connect this phone first, then open your Astra chat."
                 android:textColor="#CBD5E1"
                 android:textSize="13sp" />
 

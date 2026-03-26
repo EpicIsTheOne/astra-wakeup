@@ -2,7 +2,6 @@ package com.astra.wakeup.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Base64
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -13,7 +12,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.astra.wakeup.R
 import com.astra.wakeup.alarm.AlarmScheduler
-import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,30 +19,36 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
-        val etPairingCode = findViewById<EditText>(R.id.etPairingCode)
         val etApiUrl = findViewById<EditText>(R.id.etApiUrl)
+        val etGatewayToken = findViewById<EditText>(R.id.etGatewayToken)
+        val etBootstrapToken = findViewById<EditText>(R.id.etBootstrapToken)
         val cbRandomSfx = findViewById<CheckBox>(R.id.cbRandomSfx)
         val cbPunish = findViewById<CheckBox>(R.id.cbPunish)
         val cbAstraFm = findViewById<CheckBox>(R.id.cbAstraFm)
-        val etGatewayToken = findViewById<EditText>(R.id.etGatewayToken)
-        val etBootstrapToken = findViewById<EditText>(R.id.etBootstrapToken)
         val layoutGatewayAdvanced = findViewById<LinearLayout>(R.id.layoutGatewayAdvanced)
         val layoutGatewayDebug = findViewById<LinearLayout>(R.id.layoutGatewayDebug)
+        val layoutWakeCard = findViewById<LinearLayout>(R.id.layoutWakeCard)
+        val layoutChatCard = findViewById<LinearLayout>(R.id.layoutChatCard)
         val spWakeProfile = findViewById<Spinner>(R.id.spWakeProfile)
         val tvVersion = findViewById<TextView>(R.id.tvVersion)
+        val tvConnectHint = findViewById<TextView>(R.id.tvConnectHint)
         val tvApiStatus = findViewById<TextView>(R.id.tvApiStatus)
         val tvApiDetails = findViewById<TextView>(R.id.tvApiDetails)
         val tvConnectBanner = findViewById<TextView>(R.id.tvConnectBanner)
+        val tvWakeHint = findViewById<TextView>(R.id.tvWakeHint)
+        val tvChatHint = findViewById<TextView>(R.id.tvChatHint)
         val tvHealthChip = findViewById<TextView>(R.id.tvHealthChip)
         val tvLineChip = findViewById<TextView>(R.id.tvLineChip)
         val tvChatChip = findViewById<TextView>(R.id.tvChatChip)
         val tvGatewayDebug = findViewById<TextView>(R.id.tvGatewayDebug)
         val btnToggleAdvancedGateway = findViewById<Button>(R.id.btnToggleAdvancedGateway)
         val btnConnectGateway = findViewById<Button>(R.id.btnConnectGateway)
+        val btnOpenChat = findViewById<Button>(R.id.btnOpenChat)
+        val btnSchedule = findViewById<Button>(R.id.btnSchedule)
+        val btnTest = findViewById<Button>(R.id.btnTest)
 
         val defaultExternalUrl = "http://72.60.29.204:18789"
         val savedApiUrl = prefs.getString("api_url", null)?.takeIf { it.isNotBlank() }
-        etPairingCode.setText(prefs.getString("gateway_pairing_code", "") ?: "")
         etApiUrl.setText(savedApiUrl ?: defaultExternalUrl)
         etGatewayToken.setText(prefs.getString("gateway_token", "") ?: "")
         etBootstrapToken.setText(prefs.getString("gateway_bootstrap_token", "") ?: "")
@@ -96,13 +100,11 @@ class MainActivity : AppCompatActivity() {
 
         fun saveMainSettings() {
             val apiUrl = etApiUrl.text.toString().trim()
-            val pairingCode = etPairingCode.text.toString().trim()
             val gatewayToken = etGatewayToken.text.toString().trim()
             val bootstrapToken = etBootstrapToken.text.toString().trim()
             val wakeProfile = spWakeProfile.selectedItem.toString()
             prefs.edit()
                 .putString("api_url", apiUrl)
-                .putString("gateway_pairing_code", pairingCode)
                 .putString("gateway_token", gatewayToken)
                 .putString("gateway_bootstrap_token", bootstrapToken)
                 .putBoolean("random_sfx", cbRandomSfx.isChecked)
@@ -112,7 +114,7 @@ class MainActivity : AppCompatActivity() {
                 .apply()
         }
 
-        fun showConnectBanner(message: String? = null, backgroundColor: String = "#3F1D3B", textColor: String = "#FCE7F3") {
+        fun showConnectBanner(message: String? = null, backgroundColor: String = "#1E293B", textColor: String = "#E2E8F0") {
             if (message.isNullOrBlank()) {
                 tvConnectBanner.visibility = android.view.View.GONE
                 tvConnectBanner.text = ""
@@ -124,86 +126,102 @@ class MainActivity : AppCompatActivity() {
             tvConnectBanner.setTextColor(android.graphics.Color.parseColor(textColor))
         }
 
-        fun httpBaseFromGatewayUrl(gatewayUrl: String): String {
-            val trimmed = gatewayUrl.trim()
-            if (trimmed.isBlank()) return ""
-            val httpBase = trimmed
-                .replaceFirst("wss://", "https://")
-                .replaceFirst("ws://", "http://")
-            return if (httpBase.endsWith("/gateway")) httpBase.removeSuffix("/gateway") else httpBase
-        }
-
-        fun applyPairingCodeIfPresent(): Boolean {
-            val raw = etPairingCode.text.toString().trim()
-            if (raw.isBlank()) return false
-            return runCatching {
-                val normalized = raw.replace('-', '+').replace('_', '/')
-                val padded = normalized.padEnd(((normalized.length + 3) / 4) * 4, '=')
-                val decoded = String(Base64.decode(padded, Base64.DEFAULT), Charsets.UTF_8)
-                val payload = JSONObject(decoded)
-                val gatewayUrl = payload.optString("url").trim()
-                val bootstrapToken = payload.optString("bootstrapToken").trim()
-                val apiUrl = httpBaseFromGatewayUrl(gatewayUrl)
-                if (apiUrl.isBlank()) error("Missing gateway URL in pairing code")
-                etApiUrl.setText(apiUrl)
-                if (bootstrapToken.isNotBlank()) {
-                    etBootstrapToken.setText(bootstrapToken)
-                }
-                if (etGatewayToken.text.toString().trim().isBlank()) {
-                    etGatewayToken.setText("")
-                }
-                true
-            }.getOrElse {
-                showConnectBanner("That pairing code looks invalid. Paste a fresh one from OpenClaw.", backgroundColor = "#7F1D1D", textColor = "#FEE2E2")
-                tvApiStatus.text = "Status: pairing code invalid"
-                tvApiDetails.text = it.message ?: "Could not decode pairing code"
-                false
-            }
-        }
-
         fun setConnectedState(connected: Boolean) {
             prefs.edit().putBoolean("gateway_connected", connected).apply()
         }
 
         fun isConnectedState(): Boolean = prefs.getBoolean("gateway_connected", false)
 
-        fun refreshOpenChatButton() {
-            val button = findViewById<Button>(R.id.btnOpenChat)
+        fun refreshSecondaryCards() {
             val connected = isConnectedState()
-            button.isEnabled = connected
-            button.alpha = if (connected) 1.0f else 0.65f
-            button.text = if (connected) "Open Chat" else "Open Chat (connect first)"
+            val wakeAlpha = if (connected) 1.0f else 0.62f
+            val chatAlpha = if (connected) 1.0f else 0.62f
+            layoutWakeCard.alpha = wakeAlpha
+            layoutChatCard.alpha = chatAlpha
+
+            spWakeProfile.isEnabled = connected
+            cbRandomSfx.isEnabled = connected
+            cbPunish.isEnabled = connected
+            cbAstraFm.isEnabled = connected
+            btnSchedule.isEnabled = connected
+            btnTest.isEnabled = connected
+            btnOpenChat.isEnabled = connected
+            btnOpenChat.text = if (connected) "Open Chat" else "Open Chat (connect first)"
+            tvWakeHint.text = if (connected) {
+                "Choose how Astra should wake you up on this phone."
+            } else {
+                "Connect this phone to enable wake controls."
+            }
+            tvChatHint.text = if (connected) {
+                "Open your Astra chat from this phone."
+            } else {
+                "Connect this phone first, then open your Astra chat."
+            }
         }
 
         fun setConnectBusy(isBusy: Boolean, buttonLabel: String = "Connect this phone") {
             btnConnectGateway.isEnabled = !isBusy
             btnConnectGateway.text = buttonLabel
-            etPairingCode.isEnabled = !isBusy
             etApiUrl.isEnabled = !isBusy
+            etGatewayToken.isEnabled = !isBusy
+        }
+
+        fun applyConnectionVisualState(
+            title: String,
+            details: String,
+            banner: String? = null,
+            bannerBackground: String = "#1E293B",
+            bannerText: String = "#E2E8F0"
+        ) {
+            tvApiStatus.text = title
+            tvApiDetails.text = details
+            showConnectBanner(banner, bannerBackground, bannerText)
         }
 
         fun runStatusCheck() {
             val apiUrl = etApiUrl.text.toString().trim()
-            tvApiStatus.text = "Status: checking connection..."
-            tvApiDetails.text = "Checking health, line, and chat so the UI has something intelligent to say for once."
-            showConnectBanner("Checking OpenClaw connection…", backgroundColor = "#1E293B", textColor = "#E2E8F0")
-            tvHealthChip.text = "health: ..."
-            tvLineChip.text = "line: ..."
-            tvChatChip.text = "chat: ..."
+            if (apiUrl.isBlank()) {
+                setConnectedState(false)
+                refreshSecondaryCards()
+                applyConnectionVisualState(
+                    title = "This phone is not connected yet",
+                    details = "Enter your OpenClaw URL and shared gateway token, then tap Connect this phone.",
+                    banner = null
+                )
+                return
+            }
+            applyConnectionVisualState(
+                title = "Checking connection status…",
+                details = "Making sure OpenClaw is reachable before we unlock the rest of the app.",
+                banner = "Checking OpenClaw connection…",
+                bannerBackground = "#1E293B",
+                bannerText = "#E2E8F0"
+            )
+            tvHealthChip.text = "Gateway status: checking"
+            tvLineChip.text = "Connection state: checking"
+            tvChatChip.text = "Chat state: checking"
             Thread {
                 val suite = ApiStatusClient.checkSuite(this, apiUrl)
                 runOnUiThread {
                     setConnectedState(suite.chatOk)
-                    refreshOpenChatButton()
-                    tvApiStatus.text = if (suite.ok) "Status: ready ✅" else "Status: needs attention"
-                    tvApiDetails.text = suite.details
-                    tvHealthChip.text = "health: ${if (suite.healthOk) "✅" else "❌"}"
-                    tvLineChip.text = "line: ${if (suite.lineOk) "✅" else "❌"}"
-                    tvChatChip.text = "chat: ${if (suite.chatOk) "✅" else "❌"}"
+                    refreshSecondaryCards()
+                    tvHealthChip.text = "Gateway status: ${if (suite.healthOk) "reachable" else "needs attention"}"
+                    tvLineChip.text = "Connection state: ${if (suite.lineOk) "ready" else "not ready"}"
+                    tvChatChip.text = "Chat state: ${if (suite.chatOk) "ready" else "locked"}"
                     if (suite.chatOk) {
-                        showConnectBanner("This phone is connected. Chat is ready.", backgroundColor = "#14532D", textColor = "#DCFCE7")
+                        applyConnectionVisualState(
+                            title = "Phone connected",
+                            details = "Chat and wake controls are ready.",
+                            banner = "Connected. This phone is ready to use.",
+                            bannerBackground = "#14532D",
+                            bannerText = "#DCFCE7"
+                        )
                     } else {
-                        showConnectBanner(null)
+                        applyConnectionVisualState(
+                            title = "This phone needs attention",
+                            details = suite.details,
+                            banner = null
+                        )
                     }
                     refreshGatewayDebug(if (suite.chatOk) null else suite.details)
                 }
@@ -211,29 +229,48 @@ class MainActivity : AppCompatActivity() {
         }
 
         fun connectThisPhone() {
-            if (etPairingCode.text.toString().trim().isNotBlank() && !applyPairingCodeIfPresent()) {
-                setConnectedState(false)
-                refreshOpenChatButton()
-                return
-            }
             saveMainSettings()
             val apiUrl = etApiUrl.text.toString().trim()
+            val gatewayToken = etGatewayToken.text.toString().trim()
+
             if (apiUrl.isBlank()) {
                 setConnectedState(false)
-                refreshOpenChatButton()
-                showConnectBanner("Add your OpenClaw URL first.", backgroundColor = "#7C2D12", textColor = "#FFEDD5")
-                tvApiStatus.text = "Status: add your OpenClaw URL"
-                tvApiDetails.text = "Paste your external OpenClaw URL or a pairing code, then tap Connect this phone again."
+                refreshSecondaryCards()
+                applyConnectionVisualState(
+                    title = "Add your OpenClaw URL",
+                    details = "Enter your OpenClaw URL, then tap Connect this phone.",
+                    banner = "OpenClaw URL is required.",
+                    bannerBackground = "#7C2D12",
+                    bannerText = "#FFEDD5"
+                )
                 return
             }
 
-            setConnectBusy(true, "Connecting...")
-            tvApiStatus.text = "Status: connecting this phone..."
-            tvApiDetails.text = "Starting secure handshake with OpenClaw. This can take a few seconds on first connect."
-            showConnectBanner("Connecting this phone to OpenClaw…", backgroundColor = "#1E293B", textColor = "#E2E8F0")
-            tvHealthChip.text = "health: ..."
-            tvLineChip.text = "line: ..."
-            tvChatChip.text = "chat: ..."
+            if (gatewayToken.isBlank()) {
+                setConnectedState(false)
+                refreshSecondaryCards()
+                applyConnectionVisualState(
+                    title = "Add your gateway token",
+                    details = "Enter the shared gateway token for this OpenClaw instance, then tap Connect this phone.",
+                    banner = "Gateway token is required for the supported flow right now.",
+                    bannerBackground = "#7C2D12",
+                    bannerText = "#FFEDD5"
+                )
+                return
+            }
+
+            setConnectBusy(true, "Connecting…")
+            applyConnectionVisualState(
+                title = "Connecting this phone…",
+                details = "Starting secure handshake with OpenClaw.",
+                banner = "Connecting this phone to OpenClaw…",
+                bannerBackground = "#1E293B",
+                bannerText = "#E2E8F0"
+            )
+            tvHealthChip.text = "Gateway status: checking"
+            tvLineChip.text = "Connection state: connecting"
+            tvChatChip.text = "Chat state: locked"
+
             Thread {
                 val result = OpenClawChatClient().probe(this)
                 runOnUiThread {
@@ -242,35 +279,43 @@ class MainActivity : AppCompatActivity() {
                         val server = session.helloPayload.optJSONObject("server")
                         val version = server?.optString("version").orEmpty().ifBlank { "unknown" }
                         val connId = server?.optString("connId").orEmpty().ifBlank { "?" }
-                        etPairingCode.setText("")
-                        etBootstrapToken.setText("")
                         saveMainSettings()
                         setConnectedState(true)
-                        refreshOpenChatButton()
-                        showConnectBanner("Connected. Chat is unlocked and ready.", backgroundColor = "#14532D", textColor = "#DCFCE7")
-                        tvApiStatus.text = "Status: phone connected ✅"
-                        tvApiDetails.text = "Connected to OpenClaw. You can open chat now. serverVersion=$version, connId=$connId"
-                        tvHealthChip.text = "health: ✅"
-                        tvLineChip.text = "line: ready"
-                        tvChatChip.text = "chat: ✅"
+                        refreshSecondaryCards()
+                        applyConnectionVisualState(
+                            title = "Phone connected",
+                            details = "Chat and wake controls are ready. serverVersion=$version, connId=$connId",
+                            banner = "Connected. Chat and wake controls are unlocked.",
+                            bannerBackground = "#14532D",
+                            bannerText = "#DCFCE7"
+                        )
+                        tvHealthChip.text = "Gateway status: reachable"
+                        tvLineChip.text = "Connection state: ready"
+                        tvChatChip.text = "Chat state: ready"
                         refreshGatewayDebug()
                     }.onFailure { err ->
                         val msg = err.message ?: "connect failed"
                         val issue = OpenClawGatewayDiagnostics.classify(msg)
                         setConnectedState(false)
-                        refreshOpenChatButton()
-                        if (issue?.code == "PAIRING_REQUIRED") {
-                            showConnectBanner("Approval needed: ask Astra to approve the pending Android device, then tap Connect this phone again.", backgroundColor = "#7C2D12", textColor = "#FFEDD5")
-                            tvApiStatus.text = "Status: waiting for approval ⏳"
-                            tvApiDetails.text = "Approval is needed. Ask Astra to approve the pending Android device, then tap Connect this phone again."
-                            tvLineChip.text = "line: paired soon"
-                            tvChatChip.text = "chat: waiting"
-                        } else {
-                            showConnectBanner("Connection failed. Check the URL or gateway auth, then try again.", backgroundColor = "#7F1D1D", textColor = "#FEE2E2")
-                            tvApiStatus.text = "Status: connection failed ❌"
-                            tvApiDetails.text = OpenClawGatewayDiagnostics.describeStatus(this, msg)
-                            tvChatChip.text = "chat: ❌"
-                        }
+                        refreshSecondaryCards()
+                        applyConnectionVisualState(
+                            title = when (issue?.code) {
+                                "AUTH_TOKEN_MISSING" -> "Gateway token missing"
+                                "AUTH_TOKEN_MISMATCH" -> "Gateway token mismatch"
+                                else -> "Connection failed"
+                            },
+                            details = OpenClawGatewayDiagnostics.describeStatus(this, msg),
+                            banner = when (issue?.code) {
+                                "AUTH_TOKEN_MISSING" -> "Add the shared gateway token, then try again."
+                                "AUTH_TOKEN_MISMATCH" -> "The saved gateway token does not match OpenClaw."
+                                else -> "Check the URL or gateway token and try again."
+                            },
+                            bannerBackground = "#7F1D1D",
+                            bannerText = "#FEE2E2"
+                        )
+                        tvHealthChip.text = "Gateway status: needs attention"
+                        tvLineChip.text = "Connection state: failed"
+                        tvChatChip.text = "Chat state: locked"
                         refreshGatewayDebug(msg)
                     }
                 }
@@ -279,7 +324,7 @@ class MainActivity : AppCompatActivity() {
 
         setAdvancedVisible(false)
         refreshGatewayDebug()
-        refreshOpenChatButton()
+        refreshSecondaryCards()
         runStatusCheck()
 
         btnToggleAdvancedGateway.setOnClickListener {
@@ -310,27 +355,48 @@ class MainActivity : AppCompatActivity() {
             OpenClawGatewayAuthStore.clearAllGatewayAuth(this)
             etGatewayToken.setText("")
             etBootstrapToken.setText("")
+            setConnectedState(false)
+            refreshSecondaryCards()
             refreshGatewayDebug("all gateway auth cleared")
+            applyConnectionVisualState(
+                title = "This phone is not connected yet",
+                details = "Enter your OpenClaw URL and shared gateway token, then tap Connect this phone.",
+                banner = "Cleared saved gateway auth.",
+                bannerBackground = "#1E293B",
+                bannerText = "#E2E8F0"
+            )
             Toast.makeText(this, "Cleared shared/bootstrap/device auth", Toast.LENGTH_SHORT).show()
         }
 
-        findViewById<Button>(R.id.btnSchedule).setOnClickListener {
+        btnSchedule.setOnClickListener {
+            if (!isConnectedState()) {
+                Toast.makeText(this, "Connect this phone first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             saveMainSettings()
             AlarmScheduler.scheduleDaily(this, 5, 50)
             Toast.makeText(this, "Scheduled for 5:50 AM ET", Toast.LENGTH_SHORT).show()
         }
 
-        findViewById<Button>(R.id.btnTest).setOnClickListener {
+        btnTest.setOnClickListener {
+            if (!isConnectedState()) {
+                Toast.makeText(this, "Connect this phone first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
             saveMainSettings()
             startActivity(Intent(this, WakeActivity::class.java))
         }
 
-        findViewById<Button>(R.id.btnOpenChat).setOnClickListener {
+        btnOpenChat.setOnClickListener {
             if (!isConnectedState()) {
                 Toast.makeText(this, "Connect this phone first", Toast.LENGTH_SHORT).show()
-                showConnectBanner("Chat stays locked until this phone finishes connecting.", backgroundColor = "#7C2D12", textColor = "#FFEDD5")
-                tvApiStatus.text = "Status: connect before opening chat"
-                tvApiDetails.text = "Finish the phone connection first so chat has a real gateway session to use."
+                applyConnectionVisualState(
+                    title = "Connect before opening chat",
+                    details = "Finish connecting this phone so chat has a real OpenClaw session to use.",
+                    banner = "Chat stays locked until this phone connects.",
+                    bannerBackground = "#7C2D12",
+                    bannerText = "#FFEDD5"
+                )
                 return@setOnClickListener
             }
             startActivity(Intent(this, ChatActivity::class.java))
