@@ -154,6 +154,19 @@
                 android:textColor="#CBD5E1"
                 android:textSize="12sp" />
 
+            <TextView
+                android:id="@+id/tvConnectBanner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="#3F1D3B"
+                android:padding="12dp"
+                android:text=""
+                android:textColor="#FCE7F3"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -325,7 +338,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="Once the phone is connected, open chat from here."
+                android:text="Chat unlocks after this phone finishes connecting to OpenClaw."
                 android:textColor="#CBD5E1"
                 android:textSize="13sp" />
 
