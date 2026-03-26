@@ -3,13 +3,22 @@ name: Build Astra Android APK
 on:
   workflow_dispatch:
   push:
+    branches: [main]
+    paths:
+      - 'astra-wakeup-android/**'
+      - '.github/workflows/astra-android-build.yml'
+  pull_request:
     paths:
       - 'astra-wakeup-android/**'
       - '.github/workflows/astra-android-build.yml'
 
+permissions:
+  contents: read
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: astra-wakeup-android
@@ -23,21 +32,38 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
 
       - name: Build debug APK
-        run: gradle assembleDebug
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: astra-wakeup-debug-apk
           path: astra-wakeup-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: astra-wakeup-debug-build-logs
+          path: |
+            astra-wakeup-android/app/build/reports
+            astra-wakeup-android/app/build/outputs/logs
+          if-no-files-found: warn
+          retention-days: 14
 
   release-apk:
     if: github.ref == 'refs/heads/main'
@@ -47,9 +73,6 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
