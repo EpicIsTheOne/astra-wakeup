@@ -25,6 +25,7 @@ class MainActivity : AppCompatActivity() {
         val etApiUrl = findViewById<EditText>(R.id.etApiUrl)
         val etGatewayToken = findViewById<EditText>(R.id.etGatewayToken)
         val etBootstrapToken = findViewById<EditText>(R.id.etBootstrapToken)
+        val etMediaCenterBaseUrl = findViewById<EditText>(R.id.etMediaCenterBaseUrl)
         val cbPunish = findViewById<CheckBox>(R.id.cbPunish)
         val layoutGatewayAdvanced = findViewById<LinearLayout>(R.id.layoutGatewayAdvanced)
         val layoutGatewayDebug = findViewById<LinearLayout>(R.id.layoutGatewayDebug)
@@ -42,6 +43,7 @@ class MainActivity : AppCompatActivity() {
         val tvGatewayDebug = findViewById<TextView>(R.id.tvGatewayDebug)
         val tvWakeTime = findViewById<TextView>(R.id.tvWakeTime)
         val tvNodeIdentity = findViewById<TextView>(R.id.tvNodeIdentity)
+        val tvWakeMediaStatus = findViewById<TextView>(R.id.tvWakeMediaStatus)
         val btnToggleAdvancedGateway = findViewById<Button>(R.id.btnToggleAdvancedGateway)
         val btnConnectGateway = findViewById<Button>(R.id.btnConnectGateway)
         val btnOpenChat = findViewById<Button>(R.id.btnOpenChat)
@@ -54,6 +56,7 @@ class MainActivity : AppCompatActivity() {
         etApiUrl.setText(savedApiUrl ?: defaultExternalUrl)
         etGatewayToken.setText(prefs.getString("gateway_token", "") ?: "")
         etBootstrapToken.setText(prefs.getString("gateway_bootstrap_token", "") ?: "")
+        etMediaCenterBaseUrl.setText(prefs.getString("media_center_base_url", MediaCenterClient.baseUrl(this)) ?: MediaCenterClient.baseUrl(this))
 
         val pkgInfo = packageManager.getPackageInfo(packageName, 0)
         tvVersion.text = "version ${pkgInfo.versionName}"
@@ -119,15 +122,32 @@ class MainActivity : AppCompatActivity() {
             val apiUrl = etApiUrl.text.toString().trim()
             val gatewayToken = etGatewayToken.text.toString().trim()
             val bootstrapToken = etBootstrapToken.text.toString().trim()
+            val mediaCenterBaseUrl = etMediaCenterBaseUrl.text.toString().trim()
             prefs.edit()
                 .putString("api_url", apiUrl)
                 .putString("gateway_token", gatewayToken)
                 .putString("gateway_bootstrap_token", bootstrapToken)
+                .putString("media_center_base_url", mediaCenterBaseUrl)
                 .putBoolean("punish", cbPunish.isChecked)
                 .putInt("wake_hour", wakeHour)
                 .putInt("wake_minute", wakeMinute)
                 .remove("wake_profile")
                 .apply()
+        }
+
+        fun refreshWakeMediaStatus() {
+            tvWakeMediaStatus.text = "Wake media: checking Media Center…"
+            Thread {
+                val result = runCatching { MediaCenterClient.fetchWakeAssets(this) }
+                runOnUiThread {
+                    val assets = result.getOrNull()
+                    tvWakeMediaStatus.text = when {
+                        assets == null -> "Wake media: couldn't load Media Center assets"
+                        assets.isEmpty() -> "Wake media: no wake-ready sound effects or music yet"
+                        else -> "Wake media: ${assets.size} wake-ready assets available"
+                    }
+                }
+            }.start()
         }
 
         fun showConnectBanner(message: String? = null, backgroundColor: String = "#1E293B", textColor: String = "#E2E8F0") {
@@ -162,7 +182,7 @@ class MainActivity : AppCompatActivity() {
             btnOpenChat.isEnabled = connected
             btnOpenChat.text = if (connected) "Open Chat" else "Open Chat (connect first)"
             tvWakeHint.text = if (connected) {
-                "Pick any wake time you want. Astra will keep trying to wake you up until you tap I'm awake, and Talk back only listens when you press it."
+                "Pick any wake time you want. Astra will keep trying to wake you up until you tap I'm awake, Talk back only listens when you press it, and wake-ready Media Center assets can be used for audio choices."
             } else {
                 "Connect this phone to enable wake controls."
             }
@@ -307,6 +327,7 @@ class MainActivity : AppCompatActivity() {
                         tvLineChip.text = "Connection state: ready"
                         tvChatChip.text = "Chat state: ready"
                         OpenClawNodeService.start(this@MainActivity)
+                        refreshWakeMediaStatus()
                         refreshGatewayDebug()
                     }.onFailure { err ->
                         val msg = err.message ?: "connect failed"
@@ -341,6 +362,7 @@ class MainActivity : AppCompatActivity() {
         setAdvancedVisible(false)
         refreshGatewayDebug()
         refreshSecondaryCards()
+        refreshWakeMediaStatus()
         if (isConnectedState()) OpenClawNodeService.start(this)
         runStatusCheck()
 
@@ -367,6 +389,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             saveMainSettings()
+            refreshWakeMediaStatus()
             refreshGatewayDebug()
             Toast.makeText(this, "Saved settings", Toast.LENGTH_SHORT).show()
         }

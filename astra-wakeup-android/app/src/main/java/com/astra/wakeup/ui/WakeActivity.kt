@@ -28,6 +28,7 @@ class WakeActivity : AppCompatActivity() {
     private var isListening = false
     private var wakeTurn = 0
     private var outputsStopped = false
+    private var wakeMediaCatalog = "Loading wake-ready Media Center assets..."
     private lateinit var phoneControl: PhoneControlExecutor
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +45,7 @@ class WakeActivity : AppCompatActivity() {
         phoneControl = PhoneControlExecutor(this)
         getSharedPreferences("astra", MODE_PRIVATE).edit().putLong("last_alarm_triggered_at", System.currentTimeMillis()).apply()
 
+        preloadWakeMediaCatalog()
         requestWakeTurn(reason = "initial")
 
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
@@ -69,6 +71,15 @@ class WakeActivity : AppCompatActivity() {
         }
     }
 
+    private fun preloadWakeMediaCatalog() {
+        Thread {
+            val result = runCatching { MediaCenterClient.fetchWakeAssets(this) }
+            wakeMediaCatalog = result.getOrNull()?.let { assets ->
+                MediaCenterClient.assetCatalogText(assets, limit = 12)
+            } ?: "Media Center assets could not be loaded right now."
+        }.start()
+    }
+
     private fun requestWakeTurn(reason: String) {
         if (acknowledged) return
         wakeTurn += 1
@@ -82,8 +93,12 @@ class WakeActivity : AppCompatActivity() {
             append("The speech must be Astra talking directly to Epic in 1-3 short sentences. ")
             append("No markdown. No prose outside JSON. No code fences. ")
             append("Allowed commands are phone.tts.speak, phone.audio.play, phone.audio.stop, phone.vibrate. ")
+            append("If you use phone.audio.play, sourceType must be url and source must be one of the wake-ready Media Center URLs listed below. ")
             append("Use actions only when you actually want the phone to do something. ")
             append("The app itself will execute the actions. ")
+            append("Wake-ready media catalog:\n")
+            append(wakeMediaCatalog)
+            append("\n")
             append("Epic is not awake yet. Reason for this turn: $reason. Wake turn number: $wakeTurn. ")
             append("Stable target info if you need to refer to the phone later: nodeId=")
             append(NodeIdentity.getStableNodeId(this@WakeActivity))
@@ -194,7 +209,9 @@ class WakeActivity : AppCompatActivity() {
             append(". Return ONLY valid compact JSON with this exact shape: ")
             append("{\"speech\":string,\"actions\":[{\"command\":string,\"params\":object}]}. ")
             append("Allowed commands are phone.tts.speak, phone.audio.play, phone.audio.stop, phone.vibrate. ")
-            append("Keep it short, direct, and in-character. No markdown.")
+            append("If you use phone.audio.play, sourceType must be url and source must be one of these wake-ready Media Center URLs:\n")
+            append(wakeMediaCatalog)
+            append("\nKeep it short, direct, and in-character. No markdown.")
         }
 
         Thread {

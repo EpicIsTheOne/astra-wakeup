@@ -158,6 +158,28 @@
                     android:textColor="#F8FAFC"
                     android:textColorHint="#64748B" />
 
+                <EditText
+                    android:id="@+id/etMediaCenterBaseUrl"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="#0B1220"
+                    android:hint="Media Center base URL"
+                    android:padding="12dp"
+                    android:singleLine="true"
+                    android:text="https://techexplore.us/missioncontrol"
+                    android:textColor="#F8FAFC"
+                    android:textColorHint="#64748B" />
+
+                <TextView
+                    android:id="@+id/tvWakeMediaStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Wake media: -"
+                    android:textColor="#C4B5FD"
+                    android:textSize="12sp" />
+
                 <Button
                     android:id="@+id/btnSave"
                     android:layout_width="match_parent"
