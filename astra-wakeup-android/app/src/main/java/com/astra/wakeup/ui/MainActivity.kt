@@ -25,9 +25,7 @@ class MainActivity : AppCompatActivity() {
         val etApiUrl = findViewById<EditText>(R.id.etApiUrl)
         val etGatewayToken = findViewById<EditText>(R.id.etGatewayToken)
         val etBootstrapToken = findViewById<EditText>(R.id.etBootstrapToken)
-        val cbRandomSfx = findViewById<CheckBox>(R.id.cbRandomSfx)
         val cbPunish = findViewById<CheckBox>(R.id.cbPunish)
-        val cbAstraFm = findViewById<CheckBox>(R.id.cbAstraFm)
         val layoutGatewayAdvanced = findViewById<LinearLayout>(R.id.layoutGatewayAdvanced)
         val layoutGatewayDebug = findViewById<LinearLayout>(R.id.layoutGatewayDebug)
         val layoutWakeCard = findViewById<LinearLayout>(R.id.layoutWakeCard)
@@ -43,6 +41,7 @@ class MainActivity : AppCompatActivity() {
         val tvChatChip = findViewById<TextView>(R.id.tvChatChip)
         val tvGatewayDebug = findViewById<TextView>(R.id.tvGatewayDebug)
         val tvWakeTime = findViewById<TextView>(R.id.tvWakeTime)
+        val tvNodeIdentity = findViewById<TextView>(R.id.tvNodeIdentity)
         val btnToggleAdvancedGateway = findViewById<Button>(R.id.btnToggleAdvancedGateway)
         val btnConnectGateway = findViewById<Button>(R.id.btnConnectGateway)
         val btnOpenChat = findViewById<Button>(R.id.btnOpenChat)
@@ -59,9 +58,7 @@ class MainActivity : AppCompatActivity() {
         val pkgInfo = packageManager.getPackageInfo(packageName, 0)
         tvVersion.text = "version ${pkgInfo.versionName}"
 
-        cbRandomSfx.isChecked = prefs.getBoolean("random_sfx", true)
         cbPunish.isChecked = prefs.getBoolean("punish", true)
-        cbAstraFm.isChecked = prefs.getBoolean("astra_fm", true)
 
         var wakeHour = prefs.getInt("wake_hour", 5)
         var wakeMinute = prefs.getInt("wake_minute", 50)
@@ -93,6 +90,12 @@ class MainActivity : AppCompatActivity() {
             val summary = OpenClawGatewayAuthStore.authDebugSummary(this)
             val issue = OpenClawGatewayDiagnostics.classify(lastError)
             val issueText = issue?.let { " | issue=${it.summary}" }.orEmpty()
+            tvNodeIdentity.text = buildString {
+                append("nodeId=")
+                append(NodeIdentity.getStableNodeId(this@MainActivity))
+                append("\ninstanceId=")
+                append(NodeIdentity.getNodeInstanceId(this@MainActivity))
+            }
             tvGatewayDebug.text = buildString {
                 append("gateway: ws=")
                 append(if (config.wsUrl.isBlank()) "(unset)" else config.wsUrl)
@@ -120,9 +123,7 @@ class MainActivity : AppCompatActivity() {
                 .putString("api_url", apiUrl)
                 .putString("gateway_token", gatewayToken)
                 .putString("gateway_bootstrap_token", bootstrapToken)
-                .putBoolean("random_sfx", cbRandomSfx.isChecked)
                 .putBoolean("punish", cbPunish.isChecked)
-                .putBoolean("astra_fm", cbAstraFm.isChecked)
                 .putInt("wake_hour", wakeHour)
                 .putInt("wake_minute", wakeMinute)
                 .remove("wake_profile")
@@ -154,16 +155,14 @@ class MainActivity : AppCompatActivity() {
             layoutWakeCard.alpha = wakeAlpha
             layoutChatCard.alpha = chatAlpha
 
-            cbRandomSfx.isEnabled = connected
             cbPunish.isEnabled = connected
-            cbAstraFm.isEnabled = connected
             btnPickWakeTime.isEnabled = connected
             btnSchedule.isEnabled = connected
             btnTest.isEnabled = connected
             btnOpenChat.isEnabled = connected
             btnOpenChat.text = if (connected) "Open Chat" else "Open Chat (connect first)"
             tvWakeHint.text = if (connected) {
-                "Pick any wake time you want. Astra will keep talking with you until you admit you're awake."
+                "Pick any wake time you want. Astra will keep trying to wake you up until you tap I'm awake, and Talk back only listens when you press it."
             } else {
                 "Connect this phone to enable wake controls."
             }
@@ -307,6 +306,7 @@ class MainActivity : AppCompatActivity() {
                         tvHealthChip.text = "Gateway status: reachable"
                         tvLineChip.text = "Connection state: ready"
                         tvChatChip.text = "Chat state: ready"
+                        OpenClawNodeService.start(this@MainActivity)
                         refreshGatewayDebug()
                     }.onFailure { err ->
                         val msg = err.message ?: "connect failed"
@@ -341,6 +341,7 @@ class MainActivity : AppCompatActivity() {
         setAdvancedVisible(false)
         refreshGatewayDebug()
         refreshSecondaryCards()
+        if (isConnectedState()) OpenClawNodeService.start(this)
         runStatusCheck()
 
         btnToggleAdvancedGateway.setOnClickListener {
@@ -381,6 +382,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnClearGatewayAuth).setOnClickListener {
+            OpenClawNodeService.stop(this)
             OpenClawGatewayAuthStore.clearAllGatewayAuth(this)
             etGatewayToken.setText("")
             etBootstrapToken.setText("")

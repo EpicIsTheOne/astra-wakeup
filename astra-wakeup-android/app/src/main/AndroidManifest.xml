@@ -87,6 +87,11 @@
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
+        <service
+            android:name=".ui.OpenClawNodeService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <receiver
             android:name=".alarm.BootReceiver"
             android:enabled="true"

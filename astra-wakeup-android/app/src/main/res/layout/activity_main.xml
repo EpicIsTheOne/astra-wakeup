@@ -202,9 +202,18 @@
                     android:orientation="vertical">
 
                     <TextView
+                        android:id="@+id/tvNodeIdentity"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="nodeId=-"
+                        android:textColor="#C4B5FD"
+                        android:textSize="12sp" />
+
+                    <TextView
                         android:id="@+id/tvGatewayDebug"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
                         android:text="gateway debug: -"
                         android:textColor="#94A3B8"
                         android:textSize="12sp" />
@@ -285,25 +294,11 @@
                 android:textColor="#FFFFFF" />
 
             <CheckBox
-                android:id="@+id/cbRandomSfx"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="Random annoying SFX"
-                android:textColor="#E2E8F0" />
-
-            <CheckBox
                 android:id="@+id/cbPunish"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
                 android:text="Keep pushing until I tap I'm awake"
-                android:textColor="#E2E8F0" />
-
-            <CheckBox
-                android:id="@+id/cbAstraFm"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Let Astra open with a dramatic intro when available"
                 android:textColor="#E2E8F0" />
 
             <Button
