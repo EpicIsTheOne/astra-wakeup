@@ -59,6 +59,8 @@ class MainActivity : AppCompatActivity() {
         val btnPickWakeTime = findViewById<Button>(R.id.btnPickWakeTime)
         val btnSchedule = findViewById<Button>(R.id.btnSchedule)
         val btnTest = findViewById<Button>(R.id.btnTest)
+        val btnTestFullScreenAlarm = findViewById<Button>(R.id.btnTestFullScreenAlarm)
+        val btnNotificationSettings = findViewById<Button>(R.id.btnNotificationSettings)
         val btnUsageAccess = findViewById<Button>(R.id.btnUsageAccess)
         val btnInterventionSettings = findViewById<Button>(R.id.btnInterventionSettings)
 
@@ -93,11 +95,27 @@ class MainActivity : AppCompatActivity() {
             val wakeEnabled = prefs.getBoolean("wake_enabled", false)
             val canExact = AlarmScheduler.canScheduleExactAlarms(this)
             val lastFiredAt = prefs.getLong("last_alarm_receiver_fired_at", 0L)
+            val notificationsEnabled = AlarmDiagnostics.notificationsEnabled(this)
+            val fullScreenAllowed = AlarmDiagnostics.fullScreenIntentLikelyAllowed(this)
+            val wakeImportance = AlarmDiagnostics.wakeChannelImportance(this)
+            val wakeSessionImportance = AlarmDiagnostics.wakeSessionChannelImportance(this)
             tvWakeAlarmStatus.text = buildString {
                 append("Wake alarm: ")
                 append(if (wakeEnabled) "scheduled" else "not scheduled")
                 append(" | exact alarms=")
                 append(if (canExact) "allowed" else "needs permission")
+                append(" | notifications=")
+                append(if (notificationsEnabled) "on" else "off")
+                append(" | fullscreen=")
+                append(if (fullScreenAllowed) "allowed" else "blocked")
+                if (wakeImportance != null) {
+                    append(" | wakeChannel=")
+                    append(wakeImportance)
+                }
+                if (wakeSessionImportance != null) {
+                    append(" | sessionChannel=")
+                    append(wakeSessionImportance)
+                }
                 if (lastFiredAt > 0L) {
                     append(" | last trigger=")
                     append(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(lastFiredAt)))
@@ -210,6 +228,8 @@ class MainActivity : AppCompatActivity() {
             btnPickWakeTime.isEnabled = connected
             btnSchedule.isEnabled = connected
             btnTest.isEnabled = connected
+            btnTestFullScreenAlarm.isEnabled = connected
+            btnNotificationSettings.isEnabled = connected
             btnOpenChat.isEnabled = connected
             btnUsageAccess.isEnabled = connected
             btnInterventionSettings.isEnabled = connected
@@ -526,6 +546,22 @@ class MainActivity : AppCompatActivity() {
             }
             saveMainSettings()
             startActivity(Intent(this, WakeActivity::class.java))
+        }
+
+        btnTestFullScreenAlarm.setOnClickListener {
+            if (!isConnectedState()) {
+                Toast.makeText(this, "Connect this phone first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            saveMainSettings()
+            prefs.edit().putBoolean("wake_enabled", true).apply()
+            refreshWakeAlarmStatus()
+            WakeForegroundService.start(this)
+            Toast.makeText(this, "Triggered full-screen alarm test", Toast.LENGTH_SHORT).show()
+        }
+
+        btnNotificationSettings.setOnClickListener {
+            startActivity(AlarmDiagnostics.fullScreenIntentSettingsIntent(this))
         }
 
         btnOpenChat.setOnClickListener {

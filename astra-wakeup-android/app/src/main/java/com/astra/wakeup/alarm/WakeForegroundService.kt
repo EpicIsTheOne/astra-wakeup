@@ -31,7 +31,6 @@ class WakeForegroundService : Service() {
             else -> {
                 acquireWakeLock()
                 startForeground(NOTIFICATION_ID, buildNotification())
-                launchWakeActivity()
                 AlarmNotifier.showWakeAlarm(this)
                 return START_STICKY
             }
@@ -44,18 +43,6 @@ class WakeForegroundService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
-
-    private fun launchWakeActivity() {
-        val wakeIntent = Intent(this, WakeActivity::class.java).apply {
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_NO_USER_ACTION
-            )
-        }
-        startActivity(wakeIntent)
-    }
 
     private fun buildNotification(): Notification {
         val fullScreenIntent = Intent(this, WakeActivity::class.java).apply {
@@ -114,7 +101,10 @@ class WakeForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Astra Wake Session", NotificationManager.IMPORTANCE_HIGH)
+                NotificationChannel(CHANNEL_ID, "Astra Wake Session", NotificationManager.IMPORTANCE_HIGH).apply {
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                    enableVibration(true)
+                }
             )
         }
     }
