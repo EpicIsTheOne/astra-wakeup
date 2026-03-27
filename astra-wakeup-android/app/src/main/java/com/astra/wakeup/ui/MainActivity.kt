@@ -557,15 +557,3 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
-is, ContextActivity::class.java))
-        }
-    }
-}
-
-        }
-
-        btnInterventionSettings.setOnClickListener {
-            startActivity(Intent(this, ContextActivity::class.java))
-        }
-    }
-}
