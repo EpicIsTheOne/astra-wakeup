@@ -37,6 +37,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".ui.AstraOverlayActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AstraWakeUp.OverlayPanel" />
+
+        <activity
             android:name=".ui.InterventionPopupActivity"
             android:exported="false"
             android:excludeFromRecents="true"

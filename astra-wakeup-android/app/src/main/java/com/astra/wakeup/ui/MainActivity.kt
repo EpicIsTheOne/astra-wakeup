@@ -62,6 +62,7 @@ class MainActivity : AppCompatActivity() {
         val btnToggleAdvancedGateway = findViewById<Button>(R.id.btnToggleAdvancedGateway)
         val btnConnectGateway = findViewById<Button>(R.id.btnConnectGateway)
         val btnOpenChat = findViewById<Button>(R.id.btnOpenChat)
+        val btnOpenAstraPanel = findViewById<Button>(R.id.btnOpenAstraPanel)
         val btnOpenReminders = findViewById<Button>(R.id.btnOpenReminders)
         val btnPickWakeTime = findViewById<Button>(R.id.btnPickWakeTime)
         val seekVoiceVolume = findViewById<SeekBar>(R.id.seekVoiceVolume)
@@ -271,10 +272,12 @@ class MainActivity : AppCompatActivity() {
             btnTestFullScreenAlarm.isEnabled = connected
             btnNotificationSettings.isEnabled = connected
             btnOpenChat.isEnabled = connected
+            btnOpenAstraPanel.isEnabled = connected
             btnOpenReminders.isEnabled = connected
             btnUsageAccess.isEnabled = connected
             btnInterventionSettings.isEnabled = connected
             btnOpenChat.text = if (connected) "Open Chat" else "Open Chat (connect first)"
+            btnOpenAstraPanel.text = if (connected) "Open Astra Panel" else "Open Astra Panel (connect first)"
             btnOpenReminders.text = if (connected) "Open Reminders + Task Board" else "Open Reminders + Task Board (connect first)"
             tvWakeHint.text = if (connected) {
                 "Pick any wake time you want. Astra will keep trying to wake you up until you tap I'm awake, Talk back only listens when you press it, and wake-ready Media Center assets can be used for audio choices."
@@ -282,7 +285,7 @@ class MainActivity : AppCompatActivity() {
                 "Connect this phone to enable wake controls."
             }
             tvChatHint.text = if (connected) {
-                "Open your Astra chat with a louder personality and voice controls."
+                "Open chat, or launch the new Astra panel for a Gemini-style bottom sheet with auto-listen and TTS replies."
             } else {
                 "Connect this phone first, then open your Astra chat."
             }
@@ -671,6 +674,21 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             startActivity(Intent(this, ChatActivity::class.java))
+        }
+
+        btnOpenAstraPanel.setOnClickListener {
+            if (!isConnectedState()) {
+                Toast.makeText(this, "Connect this phone first", Toast.LENGTH_SHORT).show()
+                applyConnectionVisualState(
+                    title = "Connect before opening Astra panel",
+                    details = "Finish connecting this phone so the Astra panel has a real OpenClaw session to use.",
+                    banner = "The Astra panel stays locked until this phone connects.",
+                    bannerBackground = "#7C2D12",
+                    bannerText = "#FFEDD5"
+                )
+                return@setOnClickListener
+            }
+            startActivity(Intent(this, AstraOverlayActivity::class.java))
         }
 
         btnOpenReminders.setOnClickListener {
