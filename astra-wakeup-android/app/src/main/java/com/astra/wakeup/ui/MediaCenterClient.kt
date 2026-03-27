@@ -5,6 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 
 data class MediaCenterAsset(
@@ -69,14 +70,15 @@ object MediaCenterClient {
         return buildList {
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
-                val url = item.optString("publicUrl").trim()
-                if (url.isBlank()) continue
+                val rawUrl = item.optString("publicUrl").trim()
+                val normalizedUrl = normalizePublicUrl(rawUrl)
+                if (normalizedUrl.isBlank()) continue
                 add(
                     MediaCenterAsset(
                         id = item.optString("id"),
                         title = item.optString("title").ifBlank { item.optString("originalFilename") },
                         collection = item.optString("collection"),
-                        publicUrl = url,
+                        publicUrl = normalizedUrl,
                         wakeEnabled = item.optBoolean("wakeEnabled", false),
                         tags = jsonArrayToList(item.optJSONArray("tags")),
                         useCases = jsonArrayToList(item.optJSONArray("useCases")),
@@ -84,6 +86,23 @@ object MediaCenterClient {
                     )
                 )
             }
+        }
+    }
+
+    private fun normalizePublicUrl(rawUrl: String): String {
+        if (rawUrl.isBlank()) return ""
+        if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) return rawUrl
+
+        val base = DEFAULT_MEDIA_CENTER_BASE.trimEnd('/')
+        val origin = runCatching {
+            val uri = URI(base)
+            "${uri.scheme}://${uri.host}" + if (uri.port != -1) ":${uri.port}" else ""
+        }.getOrElse { "https://techexplore.us" }
+
+        return if (rawUrl.startsWith("/")) {
+            origin + rawUrl
+        } else {
+            "$base/$rawUrl"
         }
     }
 
