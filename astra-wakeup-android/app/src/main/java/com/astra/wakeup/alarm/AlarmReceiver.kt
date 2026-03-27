@@ -12,6 +12,8 @@ class AlarmReceiver : BroadcastReceiver() {
             .putLong("last_alarm_receiver_fired_at", System.currentTimeMillis())
             .apply()
 
+        AlarmNotifier.showWakeAlarm(context)
+
         val wakeIntent = Intent(context, WakeActivity::class.java).apply {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or

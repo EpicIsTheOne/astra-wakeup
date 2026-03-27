@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.astra.wakeup.R
+import com.astra.wakeup.alarm.AlarmNotifier
 import com.astra.wakeup.alarm.AlarmScheduler
 import org.json.JSONArray
 import org.json.JSONObject
@@ -74,6 +75,7 @@ class WakeActivity : AppCompatActivity() {
             acknowledged = true
             getSharedPreferences("astra", MODE_PRIVATE).edit().putLong("last_alarm_dismissed_at", System.currentTimeMillis()).apply()
             stopWakeOutputs()
+            AlarmNotifier.clearWakeAlarm(this)
             finish()
         }
 
@@ -81,6 +83,7 @@ class WakeActivity : AppCompatActivity() {
             acknowledged = true
             getSharedPreferences("astra", MODE_PRIVATE).edit().putLong("last_alarm_dismissed_at", System.currentTimeMillis()).apply()
             stopWakeOutputs()
+            AlarmNotifier.clearWakeAlarm(this)
             val snoozed = AlarmScheduler.scheduleSnooze(this, 10)
             getSharedPreferences("astra", MODE_PRIVATE).edit().putBoolean("wake_enabled", snoozed).apply()
             finish()
