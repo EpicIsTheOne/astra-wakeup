@@ -332,6 +332,54 @@
                 android:text="Keep pushing until I tap I'm awake"
                 android:textColor="#E2E8F0" />
 
+            <TextView
+                android:id="@+id/tvVoiceVolume"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Astra voice volume: 70%"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+
+            <SeekBar
+                android:id="@+id/seekVoiceVolume"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="70" />
+
+            <TextView
+                android:id="@+id/tvMusicVolume"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Wake music volume: 35%"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+
+            <SeekBar
+                android:id="@+id/seekMusicVolume"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="35" />
+
+            <TextView
+                android:id="@+id/tvSfxVolume"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Sound effects volume: 90%"
+                android:textColor="#CBD5E1"
+                android:textSize="13sp" />
+
+            <SeekBar
+                android:id="@+id/seekSfxVolume"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="90" />
+
             <Button
                 android:id="@+id/btnSchedule"
                 android:layout_width="match_parent"

@@ -40,6 +40,10 @@ class WakeActivity : AppCompatActivity() {
     private val wakeSessionKey = "wake-${UUID.randomUUID()}"
     private lateinit var phoneControl: PhoneControlExecutor
 
+    private fun getVoiceVolume(): Double = getSharedPreferences("astra", MODE_PRIVATE).getInt("wake_voice_volume", 70) / 100.0
+    private fun getMusicVolume(): Double = getSharedPreferences("astra", MODE_PRIVATE).getInt("wake_music_volume", 35) / 100.0
+    private fun getSfxVolume(): Double = getSharedPreferences("astra", MODE_PRIVATE).getInt("wake_sfx_volume", 90) / 100.0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_wake)
@@ -140,7 +144,7 @@ class WakeActivity : AppCompatActivity() {
                     put("source", current.publicUrl)
                     put("loop", true)
                     put("channel", "music")
-                    put("volume", 0.22)
+                    put("volume", getMusicVolume())
                 }
             )
         }
@@ -203,7 +207,9 @@ class WakeActivity : AppCompatActivity() {
                 }
                 params?.put("channel", chosenChannel)
                 if (chosenChannel == "music") {
-                    params?.put("volume", 0.22)
+                    params?.put("volume", getMusicVolume())
+                } else {
+                    params?.put("volume", getSfxVolume())
                 }
                 val source = params?.optString("source").orEmpty()
                 if (source.isNotBlank()) {
@@ -217,7 +223,7 @@ class WakeActivity : AppCompatActivity() {
         if (plan.speech.isNotBlank()) {
             actions.put(JSONObject().apply {
                 put("command", "phone.tts.speak")
-                put("params", JSONObject().put("text", plan.speech))
+                put("params", JSONObject().put("text", plan.speech).put("volume", getVoiceVolume()))
             })
         }
         for (i in 0 until plan.actions.length()) {

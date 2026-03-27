@@ -15,9 +15,11 @@ import org.json.JSONObject
 import java.util.Locale
 
 class PhoneControlExecutor(private val context: Context) : TextToSpeech.OnInitListener {
+    private data class PendingSpeech(val text: String, val volume: Float)
+
     private var tts: TextToSpeech? = null
     private var ttsReady = false
-    private var pendingSpeak: String? = null
+    private var pendingSpeak: PendingSpeech? = null
     private var musicPlayer: MediaPlayer? = null
     private var sfxPlayer: MediaPlayer? = null
     private val audioManager = context.getSystemService(AudioManager::class.java)
@@ -28,12 +30,16 @@ class PhoneControlExecutor(private val context: Context) : TextToSpeech.OnInitLi
                 stopPlayback()
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                musicPlayer?.setVolume(0.08f, 0.08f)
-                sfxPlayer?.setVolume(0.2f, 0.2f)
+                val duckedMusic = (defaultMusicVolume() * 0.35f).coerceAtLeast(0.03f)
+                val duckedSfx = (defaultSfxVolume() * 0.35f).coerceAtLeast(0.08f)
+                musicPlayer?.setVolume(duckedMusic, duckedMusic)
+                sfxPlayer?.setVolume(duckedSfx, duckedSfx)
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
-                musicPlayer?.setVolume(0.22f, 0.22f)
-                sfxPlayer?.setVolume(1.0f, 1.0f)
+                val music = defaultMusicVolume()
+                val sfx = defaultSfxVolume()
+                musicPlayer?.setVolume(music, music)
+                sfxPlayer?.setVolume(sfx, sfx)
             }
         }
     }
@@ -58,7 +64,7 @@ class PhoneControlExecutor(private val context: Context) : TextToSpeech.OnInitLi
             )
             pendingSpeak?.let {
                 pendingSpeak = null
-                speakNow(it)
+                speakNow(it.text, it.volume)
             }
         }
     }
@@ -68,8 +74,9 @@ class PhoneControlExecutor(private val context: Context) : TextToSpeech.OnInitLi
             "phone.tts.speak" -> {
                 val text = params?.optString("text").orEmpty()
                 if (text.isBlank()) error("missing text")
-                speak(text)
-                JSONObject().put("spoken", true).put("textLength", text.length)
+                val volume = (params?.optDouble("volume", defaultVoiceVolume().toDouble()) ?: defaultVoiceVolume().toDouble()).toFloat()
+                speak(text, volume)
+                JSONObject().put("spoken", true).put("textLength", text.length).put("volume", volume)
             }
             "phone.audio.play" -> {
                 val sourceType = params?.optString("sourceType").orEmpty().ifBlank { "url" }
@@ -113,18 +120,18 @@ class PhoneControlExecutor(private val context: Context) : TextToSpeech.OnInitLi
         return JSONObject().put("results", results)
     }
 
-    private fun speak(text: String) {
+    private fun speak(text: String, volume: Float = defaultVoiceVolume()) {
         requestAlarmAudioFocus()
         if (!ttsReady) {
-            pendingSpeak = text
+            pendingSpeak = PendingSpeech(text, volume)
             return
         }
-        speakNow(text)
+        speakNow(text, volume)
     }
 
-    private fun speakNow(text: String) {
+    private fun speakNow(text: String, volume: Float) {
         val params = Bundle().apply {
-            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceIn(0f, 1f))
         }
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "phone-control")
     }
@@ -187,6 +194,18 @@ class PhoneControlExecutor(private val context: Context) : TextToSpeech.OnInitLi
             reset()
             release()
         }
+    }
+
+    private fun defaultVoiceVolume(): Float = prefVolume("wake_voice_volume", 70)
+
+    private fun defaultMusicVolume(): Float = prefVolume("wake_music_volume", 35)
+
+    private fun defaultSfxVolume(): Float = prefVolume("wake_sfx_volume", 90)
+
+    private fun prefVolume(key: String, defaultPercent: Int): Float {
+        val prefs = context.getSharedPreferences("astra", Context.MODE_PRIVATE)
+        val percent = prefs.getInt(key, defaultPercent).coerceIn(0, 100)
+        return (percent / 100f).coerceIn(0f, 1f)
     }
 
     private fun vibrate(pattern: LongArray) {

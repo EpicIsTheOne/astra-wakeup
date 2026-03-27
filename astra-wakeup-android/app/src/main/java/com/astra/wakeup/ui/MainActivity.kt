@@ -9,6 +9,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -53,10 +54,16 @@ class MainActivity : AppCompatActivity() {
         val tvWakeMediaStatus = findViewById<TextView>(R.id.tvWakeMediaStatus)
         val tvWakeAlarmStatus = findViewById<TextView>(R.id.tvWakeAlarmStatus)
         val tvInterventionStatus = findViewById<TextView>(R.id.tvInterventionStatus)
+        val tvVoiceVolume = findViewById<TextView>(R.id.tvVoiceVolume)
+        val tvMusicVolume = findViewById<TextView>(R.id.tvMusicVolume)
+        val tvSfxVolume = findViewById<TextView>(R.id.tvSfxVolume)
         val btnToggleAdvancedGateway = findViewById<Button>(R.id.btnToggleAdvancedGateway)
         val btnConnectGateway = findViewById<Button>(R.id.btnConnectGateway)
         val btnOpenChat = findViewById<Button>(R.id.btnOpenChat)
         val btnPickWakeTime = findViewById<Button>(R.id.btnPickWakeTime)
+        val seekVoiceVolume = findViewById<SeekBar>(R.id.seekVoiceVolume)
+        val seekMusicVolume = findViewById<SeekBar>(R.id.seekMusicVolume)
+        val seekSfxVolume = findViewById<SeekBar>(R.id.seekSfxVolume)
         val btnSchedule = findViewById<Button>(R.id.btnSchedule)
         val btnTest = findViewById<Button>(R.id.btnTest)
         val btnTestFullScreenAlarm = findViewById<Button>(R.id.btnTestFullScreenAlarm)
@@ -79,6 +86,9 @@ class MainActivity : AppCompatActivity() {
 
         var wakeHour = prefs.getInt("wake_hour", 5)
         var wakeMinute = prefs.getInt("wake_minute", 50)
+        var voiceVolumeProgress = prefs.getInt("wake_voice_volume", 70)
+        var musicVolumeProgress = prefs.getInt("wake_music_volume", 35)
+        var sfxVolumeProgress = prefs.getInt("wake_sfx_volume", 90)
 
         fun formatWakeTime(hour: Int, minute: Int): String {
             val time = LocalTime.of(hour, minute)
@@ -89,6 +99,15 @@ class MainActivity : AppCompatActivity() {
             val formatted = formatWakeTime(wakeHour, wakeMinute)
             tvWakeTime.text = "Wake time: $formatted (America/New_York)"
             btnSchedule.text = "Schedule $formatted wake"
+        }
+
+        fun updateVolumeUi() {
+            tvVoiceVolume.text = "Astra voice volume: ${voiceVolumeProgress}%"
+            tvMusicVolume.text = "Wake music volume: ${musicVolumeProgress}%"
+            tvSfxVolume.text = "Sound effects volume: ${sfxVolumeProgress}%"
+            seekVoiceVolume.progress = voiceVolumeProgress
+            seekMusicVolume.progress = musicVolumeProgress
+            seekSfxVolume.progress = sfxVolumeProgress
         }
 
         fun refreshWakeAlarmStatus() {
@@ -177,6 +196,9 @@ class MainActivity : AppCompatActivity() {
                 .putBoolean("punish", cbPunish.isChecked)
                 .putInt("wake_hour", wakeHour)
                 .putInt("wake_minute", wakeMinute)
+                .putInt("wake_voice_volume", voiceVolumeProgress)
+                .putInt("wake_music_volume", musicVolumeProgress)
+                .putInt("wake_sfx_volume", sfxVolumeProgress)
                 .remove("wake_profile")
                 .apply()
         }
@@ -226,6 +248,9 @@ class MainActivity : AppCompatActivity() {
             cbPunish.isEnabled = connected
             cbInterventionsEnabled.isEnabled = connected
             btnPickWakeTime.isEnabled = connected
+            seekVoiceVolume.isEnabled = connected
+            seekMusicVolume.isEnabled = connected
+            seekSfxVolume.isEnabled = connected
             btnSchedule.isEnabled = connected
             btnTest.isEnabled = connected
             btnTestFullScreenAlarm.isEnabled = connected
@@ -444,6 +469,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         updateWakeTimeUi()
+        updateVolumeUi()
         setAdvancedVisible(false)
         refreshGatewayDebug()
         refreshSecondaryCards()
@@ -478,6 +504,26 @@ class MainActivity : AppCompatActivity() {
                 updateWakeTimeUi()
             }, wakeHour, wakeMinute, false).show()
         }
+
+        val volumeSliderListener = object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                when (seekBar?.id) {
+                    R.id.seekVoiceVolume -> voiceVolumeProgress = progress
+                    R.id.seekMusicVolume -> musicVolumeProgress = progress
+                    R.id.seekSfxVolume -> sfxVolumeProgress = progress
+                }
+                updateVolumeUi()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                saveMainSettings()
+            }
+        }
+        seekVoiceVolume.setOnSeekBarChangeListener(volumeSliderListener)
+        seekMusicVolume.setOnSeekBarChangeListener(volumeSliderListener)
+        seekSfxVolume.setOnSeekBarChangeListener(volumeSliderListener)
 
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             saveMainSettings()
