@@ -354,5 +354,9 @@ class WakeActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
+stopWakeOutputs()
+        super.onDestroy()
+    }
+}
    }
 }
