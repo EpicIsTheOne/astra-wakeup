@@ -14,6 +14,7 @@ class BootReceiver : BroadcastReceiver() {
             if (prefs.getBoolean("wake_enabled", false)) {
                 AlarmScheduler.scheduleFromPrefs(context)
             }
+            com.astra.wakeup.ui.ReminderScheduler.rescheduleAll(context)
             OpenClawNodeService.start(context)
             if (InterventionRepository(context).getState().enabled) {
                 context.startService(Intent(context, ContextOrchestratorService::class.java))

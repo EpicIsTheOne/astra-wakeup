@@ -62,6 +62,7 @@ class MainActivity : AppCompatActivity() {
         val btnToggleAdvancedGateway = findViewById<Button>(R.id.btnToggleAdvancedGateway)
         val btnConnectGateway = findViewById<Button>(R.id.btnConnectGateway)
         val btnOpenChat = findViewById<Button>(R.id.btnOpenChat)
+        val btnOpenReminders = findViewById<Button>(R.id.btnOpenReminders)
         val btnPickWakeTime = findViewById<Button>(R.id.btnPickWakeTime)
         val seekVoiceVolume = findViewById<SeekBar>(R.id.seekVoiceVolume)
         val seekMusicVolume = findViewById<SeekBar>(R.id.seekMusicVolume)
@@ -270,9 +271,11 @@ class MainActivity : AppCompatActivity() {
             btnTestFullScreenAlarm.isEnabled = connected
             btnNotificationSettings.isEnabled = connected
             btnOpenChat.isEnabled = connected
+            btnOpenReminders.isEnabled = connected
             btnUsageAccess.isEnabled = connected
             btnInterventionSettings.isEnabled = connected
             btnOpenChat.text = if (connected) "Open Chat" else "Open Chat (connect first)"
+            btnOpenReminders.text = if (connected) "Open Reminders + Task Board" else "Open Reminders + Task Board (connect first)"
             tvWakeHint.text = if (connected) {
                 "Pick any wake time you want. Astra will keep trying to wake you up until you tap I'm awake, Talk back only listens when you press it, and wake-ready Media Center assets can be used for audio choices."
             } else {
@@ -668,6 +671,14 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             startActivity(Intent(this, ChatActivity::class.java))
+        }
+
+        btnOpenReminders.setOnClickListener {
+            if (!isConnectedState()) {
+                Toast.makeText(this, "Connect this phone first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            startActivity(Intent(this, RemindersActivity::class.java))
         }
 
         cbInterventionsEnabled.setOnCheckedChangeListener { _, isChecked ->

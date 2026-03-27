@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#120A21"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Reminder protocol"
+        android:textAllCaps="true"
+        android:textColor="#F9A8D4"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvReminderTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:text="Take meds"
+        android:textColor="#FFFFFF"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvReminderMeta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:textColor="#FDE68A"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/tvReminderLine"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center"
+        android:text="Reminder time."
+        android:textColor="#F8FAFC"
+        android:textSize="20sp" />
+
+    <TextView
+        android:id="@+id/tvReminderTranscript"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:text="You: ..."
+        android:textColor="#D8B4FE"
+        android:textSize="15sp" />
+
+    <Button
+        android:id="@+id/btnReminderTalk"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:backgroundTint="#EC4899"
+        android:text="Talk back"
+        android:textColor="#FFFFFF" />
+
+    <Button
+        android:id="@+id/btnRemindLater"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:backgroundTint="#475569"
+        android:text="Remind me later"
+        android:textColor="#FFFFFF" />
+
+    <Button
+        android:id="@+id/btnDone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:backgroundTint="#8B5CF6"
+        android:text="Finee I’ll do it"
+        android:textColor="#FFFFFF" />
+</LinearLayout>

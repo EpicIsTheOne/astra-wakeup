@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0F172A"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Reminders + Task Board"
+            android:textColor="#F8FAFC"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#162033"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvReminderEditorTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Create reminder"
+                android:textColor="#F8FAFC"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/etReminderTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="#0B1220"
+                android:hint="What is this reminder for?"
+                android:padding="12dp"
+                android:textColor="#F8FAFC"
+                android:textColorHint="#64748B" />
+
+            <Button
+                android:id="@+id/btnPickReminderTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:backgroundTint="#8B5CF6"
+                android:text="Pick date + time"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/tvReminderPickedTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="#FDE68A"
+                android:textSize="13sp" />
+
+            <Spinner
+                android:id="@+id/spReminderImportance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp" />
+
+            <Spinner
+                android:id="@+id/spReminderAnnoyance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <Spinner
+                android:id="@+id/spReminderRepeat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <Spinner
+                android:id="@+id/spTaskLink"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <CheckBox
+                android:id="@+id/cbVerifyLater"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Schedule verification follow-up later if needed"
+                android:textColor="#E2E8F0" />
+
+            <CheckBox
+                android:id="@+id/cbReminderEnabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Reminder enabled"
+                android:textColor="#E2E8F0" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnSaveReminder"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:backgroundTint="#EC4899"
+                    android:text="Save reminder"
+                    android:textColor="#FFFFFF" />
+
+                <Button
+                    android:id="@+id/btnCancelEditReminder"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="#475569"
+                    android:text="Clear"
+                    android:textColor="#FFFFFF" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#162033"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/tvReminderListMode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Important upcoming reminders"
+                android:textColor="#F8FAFC"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnToggleManageMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:backgroundTint="#334155"
+                android:text="Manage all reminders"
+                android:textColor="#FFFFFF" />
+
+            <LinearLayout
+                android:id="@+id/layoutReminderList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#162033"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Task Board"
+                android:textColor="#F8FAFC"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvEditingTaskId"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="#64748B" />
+
+            <EditText
+                android:id="@+id/etTaskBoardTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="#0B1220"
+                android:hint="Task title"
+                android:padding="12dp"
+                android:textColor="#F8FAFC"
+                android:textColorHint="#64748B" />
+
+            <EditText
+                android:id="@+id/etTaskBoardNotes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="#0B1220"
+                android:hint="Notes"
+                android:minLines="2"
+                android:padding="12dp"
+                android:textColor="#F8FAFC"
+                android:textColorHint="#64748B" />
+
+            <Spinner
+                android:id="@+id/spTaskReminderLink"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnSaveTaskBoardItem"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:backgroundTint="#7C3AED"
+                    android:text="Save task"
+                    android:textColor="#FFFFFF" />
+
+                <Button
+                    android:id="@+id/btnClearTaskBoardItem"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="#475569"
+                    android:text="Clear"
+                    android:textColor="#FFFFFF" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/layoutTaskBoard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="vertical" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

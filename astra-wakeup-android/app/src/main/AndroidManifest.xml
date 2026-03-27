@@ -67,6 +67,16 @@
             android:name=".ui.TaskEditorActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.RemindersActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.ReminderActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
         <service
             android:name=".ui.ContextOrchestratorService"
             android:exported="false"
@@ -105,6 +115,16 @@
             android:name=".alarm.WakeForegroundService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <service
+            android:name=".ui.ReminderForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <receiver
+            android:name=".ui.ReminderReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
         <receiver
             android:name=".alarm.BootReceiver"
