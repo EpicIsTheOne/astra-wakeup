@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.app.PendingIntent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -225,10 +226,19 @@ class OpenClawNodeService : Service() {
     }
 
     private fun buildNotification(text: String): Notification {
+        val openPanel = AstraPanelLauncher.pendingIntent(this, requestCode = 4104)
+        val openApp = PendingIntent.getActivity(
+            this,
+            4105,
+            Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Astra node control")
             .setContentText(text)
             .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentIntent(openApp)
+            .addAction(0, "Talk to Astra", openPanel)
             .setOngoing(true)
             .build()
     }
