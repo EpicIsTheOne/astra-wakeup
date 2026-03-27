@@ -204,7 +204,7 @@ object WakeProfiles {
 
     fun recordWakeOutcome(context: Context, outcome: String, profile: WakeProfile, phase: WakePhase) {
         val prefs = context.prefs()
-        val history = runCatching { JSONArray(prefs.getString("wake_history_json", "[]")) }.getOrDefault(JSONArray())
+        val history = runCatching { JSONArray(prefs.getString("wake_history_json", "[]") ?: "[]") }.getOrDefault(JSONArray())
         val entry = JSONObject()
             .put("at", System.currentTimeMillis())
             .put("profile", profile.id)
