@@ -2,5 +2,4 @@
 <qs-tile xmlns:android="http://schemas.android.com/apk/res/android"
     android:icon="@mipmap/ic_launcher"
     android:label="Astra"
-    android:subtitle="Tap to talk"
-    android:state="inactive" />
+    android:subtitle="Tap to talk" />
