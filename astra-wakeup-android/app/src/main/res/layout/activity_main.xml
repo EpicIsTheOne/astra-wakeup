@@ -315,6 +315,43 @@
                 android:textColor="#C4B5FD"
                 android:textSize="12sp" />
 
+            <TextView
+                android:id="@+id/tvWakePlan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Wake plan: Workday"
+                android:textColor="#FBCFE8"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvTomorrowOverride"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Tomorrow override: none"
+                android:textColor="#CBD5E1"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btnCycleWakePlan"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="#7C3AED"
+                android:text="Change wake plan"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/btnTomorrowOverride"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:backgroundTint="#4C1D95"
+                android:text="Set tomorrow override"
+                android:textColor="#FFFFFF" />
+
             <Button
                 android:id="@+id/btnPickWakeTime"
                 android:layout_width="match_parent"

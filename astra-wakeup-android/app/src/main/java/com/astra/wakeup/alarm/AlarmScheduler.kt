@@ -47,6 +47,7 @@ object AlarmScheduler {
             next.toInstant().toEpochMilli(),
             pending
         )
+        context.getSharedPreferences("astra", Context.MODE_PRIVATE).edit().putInt("wake_snooze_count", 0).apply()
         return true
     }
 

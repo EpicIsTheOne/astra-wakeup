@@ -39,10 +39,39 @@ class WakeActivity : AppCompatActivity() {
     private var currentMusicAsset: MediaCenterAsset? = null
     private val wakeSessionKey = "wake-${UUID.randomUUID()}"
     private lateinit var phoneControl: PhoneControlExecutor
+    private lateinit var activeProfile: WakeProfile
 
-    private fun getVoiceVolume(): Double = getSharedPreferences("astra", MODE_PRIVATE).getInt("wake_voice_volume", 70) / 100.0
-    private fun getMusicVolume(): Double = getSharedPreferences("astra", MODE_PRIVATE).getInt("wake_music_volume", 35) / 100.0
-    private fun getSfxVolume(): Double = getSharedPreferences("astra", MODE_PRIVATE).getInt("wake_sfx_volume", 90) / 100.0
+    private fun currentPhase(): WakePhase = WakeProfiles.currentPhase(this)
+
+    private fun phaseAdjustedVoiceVolume(): Double {
+        val base = getSharedPreferences("astra", MODE_PRIVATE).getInt("wake_voice_volume", activeProfile.voiceVolume) / 100.0
+        return when (currentPhase()) {
+            WakePhase.SURFACE -> base * 0.92
+            WakePhase.ENGAGE -> base
+            WakePhase.INTERVENTION -> (base + 0.08).coerceAtMost(1.0)
+            WakePhase.NO_MORE_GAMES -> (base + 0.14).coerceAtMost(1.0)
+        }
+    }
+
+    private fun getMusicVolume(): Double {
+        val base = getSharedPreferences("astra", MODE_PRIVATE).getInt("wake_music_volume", activeProfile.musicVolume) / 100.0
+        return when (currentPhase()) {
+            WakePhase.SURFACE -> base * 0.85
+            WakePhase.ENGAGE -> base
+            WakePhase.INTERVENTION -> (base + 0.05).coerceAtMost(1.0)
+            WakePhase.NO_MORE_GAMES -> (base + 0.10).coerceAtMost(1.0)
+        }
+    }
+
+    private fun getSfxVolume(): Double {
+        val base = getSharedPreferences("astra", MODE_PRIVATE).getInt("wake_sfx_volume", activeProfile.sfxVolume) / 100.0
+        return when (currentPhase()) {
+            WakePhase.SURFACE -> base * 0.55
+            WakePhase.ENGAGE -> base * 0.8
+            WakePhase.INTERVENTION -> base
+            WakePhase.NO_MORE_GAMES -> base
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,13 +93,15 @@ class WakeActivity : AppCompatActivity() {
         }
 
         phoneControl = PhoneControlExecutor(this)
+        activeProfile = WakeProfiles.activeProfile(this)
         getSharedPreferences("astra", MODE_PRIVATE).edit().putLong("last_alarm_triggered_at", System.currentTimeMillis()).apply()
 
+        refreshWakePlanStatus()
         preloadWakeMediaCatalog()
         requestWakeTurn(reason = "initial")
 
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
-        if (prefs.getBoolean("punish", true)) scheduleWakeLoop()
+        if (prefs.getBoolean("punish", activeProfile.punish)) scheduleWakeLoop()
 
         findViewById<Button>(R.id.btnTalk).setOnClickListener {
             startListeningWithVAD(force = true)
@@ -79,6 +110,7 @@ class WakeActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnAwake).setOnClickListener {
             acknowledged = true
             getSharedPreferences("astra", MODE_PRIVATE).edit().putLong("last_alarm_dismissed_at", System.currentTimeMillis()).apply()
+            WakeProfiles.recordWakeOutcome(this, "awake", activeProfile, currentPhase())
             stopWakeOutputs()
             AlarmNotifier.clearWakeAlarm(this)
             finish()
@@ -86,12 +118,17 @@ class WakeActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnSnooze).setOnClickListener {
             acknowledged = true
-            getSharedPreferences("astra", MODE_PRIVATE).edit().putLong("last_alarm_dismissed_at", System.currentTimeMillis()).apply()
+            val prefs = getSharedPreferences("astra", MODE_PRIVATE)
+            val snoozeCount = prefs.getInt("wake_snooze_count", 0) + 1
+            prefs.edit().putLong("last_alarm_dismissed_at", System.currentTimeMillis()).putInt("wake_snooze_count", snoozeCount).apply()
+            WakeProfiles.recordWakeOutcome(this, "snooze", activeProfile, currentPhase())
             stopWakeOutputs()
             AlarmNotifier.clearWakeAlarm(this)
             WakeForegroundService.stop(this)
-            val snoozed = AlarmScheduler.scheduleSnooze(this, 10)
-            getSharedPreferences("astra", MODE_PRIVATE).edit().putBoolean("wake_enabled", snoozed).apply()
+            val minutes = WakeProfiles.snoozeMinutes(activeProfile, snoozeCount)
+            val snoozed = AlarmScheduler.scheduleSnooze(this, minutes)
+            prefs.edit().putBoolean("wake_enabled", snoozed).apply()
+            findViewById<Button>(R.id.btnSnooze).text = "Snooze ${minutes} min"
             finish()
         }
     }
@@ -124,6 +161,10 @@ class WakeActivity : AppCompatActivity() {
         }
     }
 
+    private fun refreshWakePlanStatus() {
+        findViewById<TextView>(R.id.tvWakePlanStatus).text = "Plan: ${activeProfile.title} · Phase: ${currentPhase().name.replace('_', ' ')}"
+    }
+
     private fun announceChosenWakeSong() {
         val transcriptView = findViewById<TextView>(R.id.tvTranscript)
         val current = currentMusicAsset
@@ -132,6 +173,7 @@ class WakeActivity : AppCompatActivity() {
         } else {
             "Wake song: ${current.title}"
         }
+        refreshWakePlanStatus()
     }
 
     private fun startWakeMusicIfAvailable() {
@@ -156,6 +198,8 @@ class WakeActivity : AppCompatActivity() {
         val lineView = findViewById<TextView>(R.id.tvLine)
         lineView.text = "Astra is waking you up…"
 
+        val phase = currentPhase()
+        refreshWakePlanStatus()
         val prompt = buildString {
             append("You are Astra waking Epic up through an Android alarm screen. ")
             append("Return ONLY valid compact JSON with this exact shape: ")
@@ -163,11 +207,13 @@ class WakeActivity : AppCompatActivity() {
             append("The speech must be Astra talking directly to Epic in 1-3 short sentences. ")
             append("No markdown. No prose outside JSON. No code fences. ")
             append("Allowed commands are phone.tts.speak, phone.audio.play, phone.audio.stop, phone.vibrate. ")
+            append("Current wake plan is ${activeProfile.title}. Description: ${activeProfile.description}. ")
+            append("Current wake phase is ${phase.name}. Plan behavior guidance: ${activeProfile.promptStyle} ")
             append("Prefer speech first and sound effects as occasional accents. Use phone.vibrate rarely and only if you genuinely need emphasis, not by default. ")
             append("The app itself has already picked and started a wake song if one was available. Do not choose the initial music yourself. ")
             append("If you later want to change songs, sourceType must be url and source must be one of the wake-ready Media Center URLs listed below. ")
             append("On later turns, you may keep the current song, switch to another listed wake-music URL, or stop/change music if it helps. ")
-            append("Promote sound effects sometimes, but do not overdo them or stack noise constantly. ")
+            append(if (WakeProfiles.sfxAllowed(activeProfile, phase)) "Sound effects are allowed in this phase, but do not overdo them or stack noise constantly. " else "Do not use sound effects in this phase yet; keep the wake-up cleaner and more controlled. ")
             append("Use actions only when you actually want the phone to do something. ")
             append("The app itself will execute the actions. ")
             append(currentMusicSummary())
@@ -175,6 +221,7 @@ class WakeActivity : AppCompatActivity() {
             append(wakeMediaCatalog)
             append("\n")
             append("Epic is not awake yet. Reason for this turn: $reason. Wake turn number: $wakeTurn. ")
+            append("Phase-based intent: SURFACE should be cleaner and less aggressive; ENGAGE should ask for response and increase pressure; INTERVENTION should be more persistent; NO_MORE_GAMES may be intense, but still controlled and useful. ")
             append("Stable target info if you need to refer to the phone later: nodeId=")
             append(NodeIdentity.getStableNodeId(this@WakeActivity))
             append(", instanceId=")
@@ -196,6 +243,7 @@ class WakeActivity : AppCompatActivity() {
     private fun renderPlan(plan: WakePlan) {
         val lineView = findViewById<TextView>(R.id.tvLine)
         lineView.text = plan.speech
+        refreshWakePlanStatus()
 
         for (i in 0 until plan.actions.length()) {
             val action = plan.actions.optJSONObject(i) ?: continue
@@ -209,6 +257,9 @@ class WakeActivity : AppCompatActivity() {
                 if (chosenChannel == "music") {
                     params?.put("volume", getMusicVolume())
                 } else {
+                    if (!WakeProfiles.sfxAllowed(activeProfile, currentPhase())) {
+                        continue
+                    }
                     params?.put("volume", getSfxVolume())
                 }
                 val source = params?.optString("source").orEmpty()
@@ -223,7 +274,7 @@ class WakeActivity : AppCompatActivity() {
         if (plan.speech.isNotBlank()) {
             actions.put(JSONObject().apply {
                 put("command", "phone.tts.speak")
-                put("params", JSONObject().put("text", plan.speech).put("volume", getVoiceVolume()))
+                put("params", JSONObject().put("text", plan.speech).put("volume", phaseAdjustedVoiceVolume()))
             })
         }
         for (i in 0 until plan.actions.length()) {
@@ -308,10 +359,12 @@ class WakeActivity : AppCompatActivity() {
             append(". Return ONLY valid compact JSON with this exact shape: ")
             append("{\"speech\":string,\"actions\":[{\"command\":string,\"params\":object}]}. ")
             append("Allowed commands are phone.tts.speak, phone.audio.play, phone.audio.stop, phone.vibrate. ")
+            append("Current wake plan is ${activeProfile.title}; current phase is ${currentPhase().name}. ${activeProfile.promptStyle} ")
             append("The app already chose and started a wake song if one was available. ")
             append("Keep music going during the wake flow unless there is a good reason to stop or switch it. ")
             append("You may change the song mid-wake if it helps, using another listed wake-music URL. ")
-            append("Promote sound effects sometimes, but do not overdo them. Use phone.vibrate rarely and only if truly needed. ")
+            append(if (WakeProfiles.sfxAllowed(activeProfile, currentPhase())) "Sound effects are allowed in this phase, but do not overdo them. " else "Do not use sound effects in this phase. ")
+            append("Use phone.vibrate rarely and only if truly needed. ")
             append(currentMusicSummary())
             append("\nIf you use phone.audio.play, sourceType must be url and source must be one of these wake-ready Media Center URLs:\n")
             append(wakeMediaCatalog)
@@ -328,15 +381,17 @@ class WakeActivity : AppCompatActivity() {
     }
 
     private fun scheduleWakeLoop() {
-        handler.postDelayed(object : Runnable {
+        val runnable = object : Runnable {
             override fun run() {
                 if (acknowledged) return
+                refreshWakePlanStatus()
                 if (!isListening) {
-                    requestWakeTurn(reason = "follow-up")
+                    requestWakeTurn(reason = "follow-up phase=${currentPhase().name}")
                 }
-                handler.postDelayed(this, 20_000)
+                handler.postDelayed(this, WakeProfiles.loopMsFor(activeProfile, currentPhase()))
             }
-        }, 20_000)
+        }
+        handler.postDelayed(runnable, WakeProfiles.loopMsFor(activeProfile, currentPhase()))
     }
 
     private fun stopWakeOutputs() {

@@ -57,6 +57,8 @@ class MainActivity : AppCompatActivity() {
         val tvVoiceVolume = findViewById<TextView>(R.id.tvVoiceVolume)
         val tvMusicVolume = findViewById<TextView>(R.id.tvMusicVolume)
         val tvSfxVolume = findViewById<TextView>(R.id.tvSfxVolume)
+        val tvWakePlan = findViewById<TextView>(R.id.tvWakePlan)
+        val tvTomorrowOverride = findViewById<TextView>(R.id.tvTomorrowOverride)
         val btnToggleAdvancedGateway = findViewById<Button>(R.id.btnToggleAdvancedGateway)
         val btnConnectGateway = findViewById<Button>(R.id.btnConnectGateway)
         val btnOpenChat = findViewById<Button>(R.id.btnOpenChat)
@@ -64,6 +66,8 @@ class MainActivity : AppCompatActivity() {
         val seekVoiceVolume = findViewById<SeekBar>(R.id.seekVoiceVolume)
         val seekMusicVolume = findViewById<SeekBar>(R.id.seekMusicVolume)
         val seekSfxVolume = findViewById<SeekBar>(R.id.seekSfxVolume)
+        val btnCycleWakePlan = findViewById<Button>(R.id.btnCycleWakePlan)
+        val btnTomorrowOverride = findViewById<Button>(R.id.btnTomorrowOverride)
         val btnSchedule = findViewById<Button>(R.id.btnSchedule)
         val btnTest = findViewById<Button>(R.id.btnTest)
         val btnTestFullScreenAlarm = findViewById<Button>(R.id.btnTestFullScreenAlarm)
@@ -89,6 +93,7 @@ class MainActivity : AppCompatActivity() {
         var voiceVolumeProgress = prefs.getInt("wake_voice_volume", 70)
         var musicVolumeProgress = prefs.getInt("wake_music_volume", 35)
         var sfxVolumeProgress = prefs.getInt("wake_sfx_volume", 90)
+        var selectedWakePlanId = prefs.getString("wake_default_plan", "workday") ?: "workday"
 
         fun formatWakeTime(hour: Int, minute: Int): String {
             val time = LocalTime.of(hour, minute)
@@ -108,6 +113,13 @@ class MainActivity : AppCompatActivity() {
             seekVoiceVolume.progress = voiceVolumeProgress
             seekMusicVolume.progress = musicVolumeProgress
             seekSfxVolume.progress = sfxVolumeProgress
+        }
+
+        fun refreshWakePlanUi() {
+            val profile = WakeProfiles.byId(selectedWakePlanId)
+            tvWakePlan.text = "Wake plan: ${profile.title} — ${profile.description}"
+            tvTomorrowOverride.text = WakeProfiles.tomorrowOverrideLabel(this)
+            btnCycleWakePlan.text = "Change wake plan (${profile.title})"
         }
 
         fun refreshWakeAlarmStatus() {
@@ -199,7 +211,7 @@ class MainActivity : AppCompatActivity() {
                 .putInt("wake_voice_volume", voiceVolumeProgress)
                 .putInt("wake_music_volume", musicVolumeProgress)
                 .putInt("wake_sfx_volume", sfxVolumeProgress)
-                .remove("wake_profile")
+                .putString("wake_default_plan", selectedWakePlanId)
                 .apply()
         }
 
@@ -251,6 +263,8 @@ class MainActivity : AppCompatActivity() {
             seekVoiceVolume.isEnabled = connected
             seekMusicVolume.isEnabled = connected
             seekSfxVolume.isEnabled = connected
+            btnCycleWakePlan.isEnabled = connected
+            btnTomorrowOverride.isEnabled = connected
             btnSchedule.isEnabled = connected
             btnTest.isEnabled = connected
             btnTestFullScreenAlarm.isEnabled = connected
@@ -470,6 +484,7 @@ class MainActivity : AppCompatActivity() {
 
         updateWakeTimeUi()
         updateVolumeUi()
+        refreshWakePlanUi()
         setAdvancedVisible(false)
         refreshGatewayDebug()
         refreshSecondaryCards()
@@ -525,9 +540,39 @@ class MainActivity : AppCompatActivity() {
         seekMusicVolume.setOnSeekBarChangeListener(volumeSliderListener)
         seekSfxVolume.setOnSeekBarChangeListener(volumeSliderListener)
 
+        btnCycleWakePlan.setOnClickListener {
+            if (!isConnectedState()) {
+                Toast.makeText(this, "Connect this phone first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            selectedWakePlanId = WakeProfiles.nextProfileId(selectedWakePlanId)
+            WakeProfiles.applyProfileDefaults(this, selectedWakePlanId)
+            voiceVolumeProgress = prefs.getInt("wake_voice_volume", voiceVolumeProgress)
+            musicVolumeProgress = prefs.getInt("wake_music_volume", musicVolumeProgress)
+            sfxVolumeProgress = prefs.getInt("wake_sfx_volume", sfxVolumeProgress)
+            cbPunish.isChecked = prefs.getBoolean("punish", cbPunish.isChecked)
+            updateVolumeUi()
+            refreshWakePlanUi()
+            refreshWakeAlarmStatus()
+            Toast.makeText(this, "Wake plan: ${WakeProfiles.byId(selectedWakePlanId).title}", Toast.LENGTH_SHORT).show()
+        }
+
+        btnTomorrowOverride.setOnClickListener {
+            if (!isConnectedState()) {
+                Toast.makeText(this, "Connect this phone first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val current = prefs.getString("wake_tomorrow_override_plan", null)
+            val next = if (current == selectedWakePlanId) null else selectedWakePlanId
+            WakeProfiles.setTomorrowOverride(this, next)
+            refreshWakePlanUi()
+            Toast.makeText(this, if (next == null) "Tomorrow override cleared" else "Tomorrow override set to ${WakeProfiles.byId(next).title}", Toast.LENGTH_SHORT).show()
+        }
+
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             saveMainSettings()
             refreshWakeMediaStatus()
+            refreshWakePlanUi()
             refreshWakeAlarmStatus()
             refreshInterventionStatus()
             refreshGatewayDebug()
@@ -636,6 +681,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnUsageAccess.setOnClickListener {
+            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
+
+        btnInterventionSettings.setOnClickListener {
+            startActivity(Intent(this, ContextActivity::class.java))
+        }
+    }
+}
+  startActivity(Intent(this, ContextActivity::class.java))
+        }
+    }
+}
+etOnClickListener {
             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
         }
 
