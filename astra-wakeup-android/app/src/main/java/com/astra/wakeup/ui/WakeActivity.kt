@@ -20,6 +20,7 @@ import androidx.core.content.ContextCompat
 import com.astra.wakeup.R
 import com.astra.wakeup.alarm.AlarmNotifier
 import com.astra.wakeup.alarm.AlarmScheduler
+import com.astra.wakeup.alarm.WakeForegroundService
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
@@ -353,10 +354,4 @@ class WakeActivity : AppCompatActivity() {
         stopWakeOutputs()
         super.onDestroy()
     }
-}
-stopWakeOutputs()
-        super.onDestroy()
-    }
-}
-   }
 }
