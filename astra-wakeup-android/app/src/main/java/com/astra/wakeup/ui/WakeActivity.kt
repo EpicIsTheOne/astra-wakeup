@@ -1,8 +1,10 @@
 package com.astra.wakeup.ui
 
 import android.Manifest
+import android.app.KeyguardManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -46,6 +48,14 @@ class WakeActivity : AppCompatActivity() {
                 WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
+        val keyguardManager = getSystemService(KeyguardManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && keyguardManager?.isKeyguardLocked == true) {
+            keyguardManager.requestDismissKeyguard(this, null)
+        }
 
         phoneControl = PhoneControlExecutor(this)
         getSharedPreferences("astra", MODE_PRIVATE).edit().putLong("last_alarm_triggered_at", System.currentTimeMillis()).apply()
@@ -89,15 +99,44 @@ class WakeActivity : AppCompatActivity() {
             wakeMediaCatalog = assets?.let { loaded ->
                 MediaCenterClient.assetCatalogText(loaded, limit = 12)
             } ?: "Media Center assets could not be loaded right now."
+            runOnUiThread {
+                announceChosenWakeSong()
+                startWakeMusicIfAvailable()
+            }
         }.start()
     }
 
     private fun currentMusicSummary(): String {
         val current = currentMusicAsset
         return if (current == null) {
-            "No wake-music asset is currently available."
+            "No app-selected wake song is currently available."
         } else {
-            "Current wake song: title=${JSONObject.quote(current.title)} url=${current.publicUrl}"
+            "Current app-selected wake song: title=${JSONObject.quote(current.title)} url=${current.publicUrl}"
+        }
+    }
+
+    private fun announceChosenWakeSong() {
+        val transcriptView = findViewById<TextView>(R.id.tvTranscript)
+        val current = currentMusicAsset
+        transcriptView.text = if (current == null) {
+            "Wake song: none"
+        } else {
+            "Wake song: ${current.title}"
+        }
+    }
+
+    private fun startWakeMusicIfAvailable() {
+        val current = currentMusicAsset ?: return
+        runCatching {
+            phoneControl.execute(
+                "phone.audio.play",
+                JSONObject().apply {
+                    put("sourceType", "url")
+                    put("source", current.publicUrl)
+                    put("loop", true)
+                    put("volume", 0.22)
+                }
+            )
         }
     }
 
@@ -114,10 +153,9 @@ class WakeActivity : AppCompatActivity() {
             append("The speech must be Astra talking directly to Epic in 1-3 short sentences. ")
             append("No markdown. No prose outside JSON. No code fences. ")
             append("Allowed commands are phone.tts.speak, phone.audio.play, phone.audio.stop, phone.vibrate. ")
-            append("Music is mandatory at the start of each wake session if any wake-music assets exist. ")
-            append("Prefer speech first, mandatory music at the start, and sound effects as occasional accents. Use phone.vibrate rarely and only if you genuinely need emphasis, not by default. ")
-            append("If you use phone.audio.play, sourceType must be url and source must be one of the wake-ready Media Center URLs listed below. ")
-            append("On the initial turn, if a current wake song is provided, include a phone.audio.play action for that song unless music is already impossible. ")
+            append("Prefer speech first and sound effects as occasional accents. Use phone.vibrate rarely and only if you genuinely need emphasis, not by default. ")
+            append("The app itself has already picked and started a wake song if one was available. Do not choose the initial music yourself. ")
+            append("If you later want to change songs, sourceType must be url and source must be one of the wake-ready Media Center URLs listed below. ")
             append("On later turns, you may keep the current song, switch to another listed wake-music URL, or stop/change music if it helps. ")
             append("Promote sound effects sometimes, but do not overdo them or stack noise constantly. ")
             append("Use actions only when you actually want the phone to do something. ")
@@ -153,9 +191,11 @@ class WakeActivity : AppCompatActivity() {
             val action = plan.actions.optJSONObject(i) ?: continue
             if (action.optString("command") == "phone.audio.play") {
                 val params = action.optJSONObject("params")
+                params?.put("volume", 0.22)
                 val source = params?.optString("source").orEmpty()
                 if (source.isNotBlank()) {
                     currentMusicAsset = wakeMusicAssets.firstOrNull { it.publicUrl == source } ?: currentMusicAsset
+                    announceChosenWakeSong()
                 }
             }
         }
@@ -249,6 +289,7 @@ class WakeActivity : AppCompatActivity() {
             append(". Return ONLY valid compact JSON with this exact shape: ")
             append("{\"speech\":string,\"actions\":[{\"command\":string,\"params\":object}]}. ")
             append("Allowed commands are phone.tts.speak, phone.audio.play, phone.audio.stop, phone.vibrate. ")
+            append("The app already chose and started a wake song if one was available. ")
             append("Keep music going during the wake flow unless there is a good reason to stop or switch it. ")
             append("You may change the song mid-wake if it helps, using another listed wake-music URL. ")
             append("Promote sound effects sometimes, but do not overdo them. Use phone.vibrate rarely and only if truly needed. ")
