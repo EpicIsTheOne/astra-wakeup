@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.animation.ValueAnimator
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -44,9 +45,11 @@ class AstraOverlayActivity : AppCompatActivity() {
     private lateinit var tvTranscript: TextView
     private lateinit var tvStatus: TextView
     private lateinit var tvConversation: TextView
+    private lateinit var orbView: View
     private lateinit var panelCard: View
     private lateinit var etInput: EditText
     private lateinit var scrollConversation: ScrollView
+    private var orbAnimator: ValueAnimator? = null
     private lateinit var btnSend: Button
     private lateinit var btnRetryListen: Button
     private lateinit var btnClose: Button
@@ -77,6 +80,7 @@ class AstraOverlayActivity : AppCompatActivity() {
             }
         }
         panelCard = findViewById(R.id.overlayPanelCard)
+        orbView = findViewById(R.id.viewOverlayOrb)
         tvTranscript = findViewById(R.id.tvOverlayTranscript)
         tvStatus = findViewById(R.id.tvOverlayStatus)
         tvConversation = findViewById(R.id.tvOverlayConversation)
@@ -90,6 +94,7 @@ class AstraOverlayActivity : AppCompatActivity() {
         panelCard.alpha = 0f
         panelCard.animate().translationY(0f).alpha(1f).setDuration(220).start()
 
+        updateOrb(OrbMode.IDLE)
         appendMessage("Astra", "Panel ready. Summon me with a tap, not fake background hotword nonsense.", true)
 
         btnClose.setOnClickListener { finish() }
@@ -279,11 +284,61 @@ class AstraOverlayActivity : AppCompatActivity() {
         recognizer?.startListening(intent)
     }
 
+    private enum class OrbMode { IDLE, LISTENING, THINKING, SPEAKING }
+
     private fun setListeningUi(status: String, listening: Boolean) {
         tvStatus.text = status
         btnRetryListen.text = if (listening) "Listening…" else "Listen"
         btnRetryListen.isEnabled = !waitingForReply
         btnSend.isEnabled = !waitingForReply
+
+        val orbMode = when {
+            listening -> OrbMode.LISTENING
+            waitingForReply -> OrbMode.THINKING
+            isAstraSpeaking || phoneControl.isSpeaking() -> OrbMode.SPEAKING
+            else -> OrbMode.IDLE
+        }
+        updateOrb(orbMode)
+    }
+
+    private fun updateOrb(mode: OrbMode) {
+        orbAnimator?.cancel()
+        orbAnimator = null
+        when (mode) {
+            OrbMode.IDLE -> {
+                orbView.setBackgroundColor(Color.parseColor("#64748B"))
+                orbView.scaleX = 1f
+                orbView.scaleY = 1f
+                orbView.alpha = 0.85f
+            }
+            OrbMode.LISTENING -> {
+                orbView.setBackgroundColor(Color.parseColor("#8B5CF6"))
+                startOrbPulse(0.88f, 1.35f, 760L)
+            }
+            OrbMode.THINKING -> {
+                orbView.setBackgroundColor(Color.parseColor("#F59E0B"))
+                startOrbPulse(0.92f, 1.18f, 980L)
+            }
+            OrbMode.SPEAKING -> {
+                orbView.setBackgroundColor(Color.parseColor("#EC4899"))
+                startOrbPulse(0.96f, 1.24f, 520L)
+            }
+        }
+    }
+
+    private fun startOrbPulse(minScale: Float, maxScale: Float, durationMs: Long) {
+        orbAnimator = ValueAnimator.ofFloat(minScale, maxScale).apply {
+            duration = durationMs
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            addUpdateListener { animator ->
+                val value = animator.animatedValue as Float
+                orbView.scaleX = value
+                orbView.scaleY = value
+                orbView.alpha = (0.72f + ((value - minScale) / (maxScale - minScale).coerceAtLeast(0.01f)) * 0.28f).coerceIn(0.72f, 1f)
+            }
+            start()
+        }
     }
 
     private fun hideKeyboard() {
@@ -314,6 +369,8 @@ class AstraOverlayActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        orbAnimator?.cancel()
+        orbAnimator = null
         recognizer?.destroy()
         recognizer = null
         phoneControl.release()
