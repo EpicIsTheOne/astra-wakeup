@@ -23,6 +23,7 @@
         android:paddingBottom="18dp">
 
         <View
+            android:id="@+id/viewOverlayDragHandle"
             android:layout_width="42dp"
             android:layout_height="5dp"
             android:layout_gravity="center_horizontal"
@@ -32,45 +33,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Astra"
-                    android:textColor="#F8FAFC"
-                    android:textSize="24sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:text="Your little Astra summon panel. Less clunky, more dangerous."
-                    android:textColor="#C4B5FD"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btnOverlayClose"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:backgroundTint="#334155"
-                android:text="Close"
-                android:textColor="#FFFFFF" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -149,28 +111,12 @@
             android:layout_marginTop="12dp"
             android:minHeight="52dp"
             android:background="@drawable/bg_astra_surface"
+            android:ellipsize="end"
+            android:maxLines="8"
             android:padding="14dp"
-            android:text="Waiting to hear you…"
+            android:text="Waiting for Astra to say something interesting…"
             android:textColor="#E5E7EB"
-            android:textSize="14sp" />
-
-        <ScrollView
-            android:id="@+id/scrollOverlayConversation"
-            android:layout_width="match_parent"
-            android:layout_height="280dp"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_astra_surface"
-            android:fillViewport="true"
-            android:padding="14dp">
-
-            <TextView
-                android:id="@+id/tvOverlayConversation"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text=""
-                android:textColor="#E5E7EB"
-                android:textSize="15sp" />
-        </ScrollView>
+            android:textSize="15sp" />
 
         <EditText
             android:id="@+id/etOverlayInput"
@@ -178,7 +124,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:background="@drawable/bg_astra_input"
-            android:hint="Type to Astra if speech flakes out. Because Android loves drama."
+            android:hint="Ask Astra anything…"
             android:imeOptions="actionSend"
             android:inputType="textCapSentences|textMultiLine"
             android:maxLines="4"
@@ -196,11 +142,16 @@
             <Button
                 android:id="@+id/btnOverlaySend"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="40dp"
                 android:layout_weight="1"
                 android:backgroundTint="#EC4899"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
                 android:text="Send"
-                android:textColor="#FFFFFF" />
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp" />
 
             <Space
                 android:layout_width="8dp"

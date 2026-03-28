@@ -11,16 +11,13 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.text.SpannableString
-import android.text.SpannableStringBuilder
-import android.text.Spanned
-import android.text.style.ForegroundColorSpan
-import android.text.style.StyleSpan
+import android.transition.AutoTransition
+import android.transition.TransitionManager
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.astra.wakeup.R
@@ -49,19 +46,17 @@ class AstraOverlayPanelController(
     private val conversationTurns = mutableListOf<ConversationTurn>()
 
     private val panelCard: View = root.findViewById(R.id.overlayPanelCard)
+    private val dragHandle: View = root.findViewById(R.id.viewOverlayDragHandle)
     private val orbView: View = root.findViewById(R.id.viewOverlayOrb)
     private val wave1: View = root.findViewById(R.id.viewWave1)
     private val wave2: View = root.findViewById(R.id.viewWave2)
     private val wave3: View = root.findViewById(R.id.viewWave3)
-    private val tvTranscript: TextView = root.findViewById(R.id.tvOverlayTranscript)
+    private val tvLatestReply: TextView = root.findViewById(R.id.tvOverlayTranscript)
     private val tvStatus: TextView = root.findViewById(R.id.tvOverlayStatus)
     private val tvConnectionBanner: TextView = root.findViewById(R.id.tvOverlayConnectionBanner)
-    private val tvConversation: TextView = root.findViewById(R.id.tvOverlayConversation)
     private val etInput: EditText = root.findViewById(R.id.etOverlayInput)
-    private val scrollConversation: ScrollView = root.findViewById(R.id.scrollOverlayConversation)
     private val btnSend: Button = root.findViewById(R.id.btnOverlaySend)
     private val btnListen: Button = root.findViewById(R.id.btnOverlayListen)
-    private val btnClose: Button = root.findViewById(R.id.btnOverlayClose)
 
     private var recognizer: SpeechRecognizer? = null
     private var isListening = false
@@ -71,6 +66,7 @@ class AstraOverlayPanelController(
     private var isAstraSpeaking = false
     private var orbAnimator: ValueAnimator? = null
     private var waveformAnimator: ValueAnimator? = null
+    private var latestReplyExpanded = false
 
     init {
         phoneControl.setSpeechStartedListener {
@@ -95,20 +91,17 @@ class AstraOverlayPanelController(
         panelCard.translationY = 60f
         panelCard.alpha = 0f
         panelCard.animate().translationY(0f).alpha(1f).setDuration(220).start()
+        installSwipeToDismiss()
 
         loadConversationHistory()
         updateConnectionBanner()
         updateOrb(OrbMode.IDLE)
-        if (conversationTurns.isEmpty()) {
-            appendMessage("Astra", "Overlay panel ready. Less clunky, more dangerous.", true)
-        } else {
-            renderConversationHistory()
+        showLatestAstraReply()
+        tvLatestReply.setOnClickListener {
+            latestReplyExpanded = !latestReplyExpanded
+            applyLatestReplyExpansion()
         }
 
-        btnClose.setOnClickListener {
-            interruptAstraSpeech()
-            onCloseRequested?.invoke()
-        }
         btnListen.setOnClickListener {
             interruptAstraSpeech()
             shouldResumeAfterSpeech = false
@@ -130,6 +123,40 @@ class AstraOverlayPanelController(
         handler.postDelayed({ startSpeechInput(force = true) }, 250)
     }
 
+    private fun installSwipeToDismiss() {
+        var downY = 0f
+        var dragging = false
+        dragHandle.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downY = event.rawY
+                    dragging = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaY = (event.rawY - downY).coerceAtLeast(0f)
+                    if (deltaY > 6f) dragging = true
+                    panelCard.translationY = deltaY
+                    panelCard.alpha = (1f - (deltaY / 600f)).coerceIn(0.72f, 1f)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val deltaY = (event.rawY - downY).coerceAtLeast(0f)
+                    if (dragging && deltaY > 120f) {
+                        interruptAstraSpeech()
+                        panelCard.animate().translationY(panelCard.height.toFloat() + 120f).alpha(0f).setDuration(160).withEndAction {
+                            onCloseRequested?.invoke()
+                        }.start()
+                    } else {
+                        panelCard.animate().translationY(0f).alpha(1f).setDuration(180).start()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
     private fun submitTypedInput() {
         val text = etInput.text.toString().trim()
         if (text.isBlank()) return
@@ -138,12 +165,11 @@ class AstraOverlayPanelController(
         isListening = false
         shouldResumeAfterSpeech = false
         etInput.setText("")
-        processUserInput(text, source = "typed")
+        processUserInput(text)
     }
 
-    private fun processUserInput(text: String, source: String) {
+    private fun processUserInput(text: String) {
         appendMessage("You", text, false)
-        tvTranscript.text = if (source == "voice") "Heard: $text" else "Typed: $text"
         askAstra(text)
     }
 
@@ -184,32 +210,25 @@ class AstraOverlayPanelController(
         val turn = ConversationTurn(speaker, message, isAstra)
         conversationTurns += turn
         trimConversationHistory()
-        appendTurnToConversationView(turn)
+        if (isAstra) {
+            latestReplyExpanded = false
+            tvLatestReply.text = message
+            applyLatestReplyExpansion()
+        }
         saveConversationHistory()
     }
 
-    private fun appendTurnToConversationView(turn: ConversationTurn) {
-        val speakerColor = if (turn.isAstra) Color.parseColor("#F472B6") else Color.parseColor("#60A5FA")
-        val bodyColor = if (turn.isAstra) Color.parseColor("#FCE7F3") else Color.parseColor("#E5E7EB")
-        val prefix = "${turn.speaker}: "
-        val line = SpannableStringBuilder()
-        if (tvConversation.text.isNotEmpty()) line.append("\n\n")
-        val prefixSpan = SpannableString(prefix).apply {
-            setSpan(ForegroundColorSpan(speakerColor), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            setSpan(StyleSpan(android.graphics.Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        val bodySpan = SpannableString(turn.message).apply {
-            setSpan(ForegroundColorSpan(bodyColor), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        }
-        line.append(prefixSpan)
-        line.append(bodySpan)
-        tvConversation.append(line)
-        scrollConversation.post { scrollConversation.fullScroll(android.view.View.FOCUS_DOWN) }
+    private fun showLatestAstraReply() {
+        val latestAstra = conversationTurns.lastOrNull { it.isAstra }?.message
+        tvLatestReply.text = latestAstra ?: "Waiting for Astra to say something interesting…"
+        applyLatestReplyExpansion()
     }
 
-    private fun renderConversationHistory() {
-        tvConversation.text = ""
-        conversationTurns.forEach { appendTurnToConversationView(it) }
+    private fun applyLatestReplyExpansion() {
+        TransitionManager.beginDelayedTransition(panelCard as android.view.ViewGroup, AutoTransition().apply { duration = 180 })
+        tvLatestReply.maxLines = if (latestReplyExpanded) Int.MAX_VALUE else 8
+        tvLatestReply.ellipsize = if (latestReplyExpanded) null else android.text.TextUtils.TruncateAt.END
+        tvLatestReply.alpha = if (latestReplyExpanded) 1f else 0.96f
     }
 
     private fun trimConversationHistory(maxTurns: Int = 32) {
@@ -281,7 +300,10 @@ class AstraOverlayPanelController(
             override fun onEndOfSpeech() { setListeningUi("Got it. Thinking…", false) }
             override fun onPartialResults(partialResults: android.os.Bundle?) {
                 val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim().orEmpty()
-                if (partial.isNotBlank()) tvTranscript.text = "Hearing: $partial"
+                if (partial.isNotBlank()) {
+                    etInput.setText(partial)
+                    etInput.setSelection(partial.length)
+                }
             }
             override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
             override fun onError(error: Int) {
@@ -295,7 +317,10 @@ class AstraOverlayPanelController(
                     setListeningUi("No speech caught. Tap Listen and try again.", false)
                     return
                 }
-                processUserInput(heard, "voice")
+                etInput.setText(heard)
+                etInput.setSelection(heard.length)
+                processUserInput(heard)
+                etInput.setText("")
             }
         })
         recognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
