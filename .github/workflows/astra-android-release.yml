@@ -30,12 +30,6 @@ jobs:
     defaults:
       run:
         working-directory: astra-wakeup-android
-    env:
-      ASTRA_KEYSTORE_PATH: ${{ runner.temp }}/astra-release.keystore
-      ASTRA_KEY_ALIAS: ${{ secrets.ASTRA_KEY_ALIAS }}
-      ASTRA_KEY_PASSWORD: ${{ secrets.ASTRA_KEY_PASSWORD }}
-      ASTRA_STORE_PASSWORD: ${{ secrets.ASTRA_STORE_PASSWORD }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -60,7 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "$ASTRA_KEYSTORE_B64" | base64 -d > "$ASTRA_KEYSTORE_PATH"
+          echo "$ASTRA_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/astra-release.keystore"
         env:
           ASTRA_KEYSTORE_B64: ${{ secrets.ASTRA_KEYSTORE_B64 }}
 
@@ -83,7 +77,17 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build signed release APK
-        run: ./gradlew --no-daemon --stacktrace :app:assembleRelease
+        run: >-
+          ./gradlew --no-daemon --stacktrace
+          -PASTRA_KEYSTORE_PATH="$RUNNER_TEMP/astra-release.keystore"
+          -PASTRA_KEY_ALIAS="$ASTRA_KEY_ALIAS"
+          -PASTRA_KEY_PASSWORD="$ASTRA_KEY_PASSWORD"
+          -PASTRA_STORE_PASSWORD="$ASTRA_STORE_PASSWORD"
+          :app:assembleRelease
+        env:
+          ASTRA_KEY_ALIAS: ${{ secrets.ASTRA_KEY_ALIAS }}
+          ASTRA_KEY_PASSWORD: ${{ secrets.ASTRA_KEY_PASSWORD }}
+          ASTRA_STORE_PASSWORD: ${{ secrets.ASTRA_STORE_PASSWORD }}
 
       - name: Upload signed release APK artifact
         uses: actions/upload-artifact@v7
@@ -107,7 +111,7 @@ jobs:
       - name: Remove decoded keystore
         if: always()
         shell: bash
-        run: rm -f "$ASTRA_KEYSTORE_PATH"
+        run: rm -f "$RUNNER_TEMP/astra-release.keystore"
 
   publish-signed-release:
     needs: build-signed-release-apk
