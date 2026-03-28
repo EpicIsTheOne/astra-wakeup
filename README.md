@@ -47,6 +47,20 @@ The Android app now includes an updater panel that can:
 Stock Android still usually requires the final install confirmation tap.
 Silent unattended install is not expected unless the device is privileged/rooted/device-owner.
 
+## Overlay status
+The floating Astra overlay has been actively reworked and now follows a compact overlay-first model instead of a mini chat window.
+
+Current overlay behavior:
+- latest-Astra-reply-first surface instead of a large visible conversation log
+- no title/subtitle/close button chrome
+- swipe-down dismissal from the drag handle
+- live speech recognition text routed into the existing input field
+- long replies collapse by default and can be expanded on tap
+- transparent background outside the panel instead of a dim fullscreen blanket
+
+Important note:
+A bad regression briefly caused the overlay to behave like a fullscreen touch-blocking layer. That was hotfixed in `v0.2.11` by removing the fullscreen blanket behavior and making the outer overlay background transparent again.
+
 ## Install Astra on Android
 - **Install page:** https://epicistheone.github.io/Astra/install-android.html
 - **Latest signed APK page:** https://epicistheone.github.io/Astra/

@@ -109,7 +109,25 @@ Important reality check:
 - on stock Android, the final install still usually needs a user confirmation tap
 - fully silent installs are not expected without elevated device privileges
 
+## Floating overlay status
+The floating Astra overlay was recently reworked away from the old bulky transcript-heavy panel.
+
+Current overlay direction:
+- compact bottom overlay instead of mini full-screen chat sheet
+- latest Astra reply is the primary visible response surface
+- no visible assistant title/subtitle or close button
+- dismissal is handled by swiping down on the drag handle
+- live speech partials/final text feed into the input field
+- long replies are line-capped by default and expand on tap
+- outside-panel background is transparent rather than dimmed
+- empty reply state is hidden until Astra actually has something to say
+
+Recent release note:
+- `v0.2.11` specifically hotfixed a serious overlay regression where the panel could act like a fullscreen touch-blocking blanket and become difficult to dismiss
+
 ## Still TODO
+- Validate the latest overlay hotfix carefully on-device, especially dismissal reliability and outside-touch behavior.
+- Decide whether the latest-reply surface should stay tappable-to-expand or gain a more explicit affordance.
 - Finish smoothing auth edge-cases so approval/token/device-token behavior feels fully seamless.
 - Polish chat UI to match the improved main screen.
 - Polish spacing/iconography/status visuals on the main screen even further.
