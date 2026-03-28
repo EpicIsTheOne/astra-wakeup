@@ -101,6 +101,7 @@ class MainActivity : AppCompatActivity() {
         val btnInterventionSettings = findViewById<Button>(R.id.btnInterventionSettings)
         val tvUpdateStatus = findViewById<TextView>(R.id.tvUpdateStatus)
         val tvUpdateHint = findViewById<TextView>(R.id.tvUpdateHint)
+        val tvUpdateVersions = findViewById<TextView>(R.id.tvUpdateVersions)
         val cbAutoUpdate = findViewById<CheckBox>(R.id.cbAutoUpdate)
         val btnCheckUpdates = findViewById<Button>(R.id.btnCheckUpdates)
         val btnDownloadUpdate = findViewById<Button>(R.id.btnDownloadUpdate)
@@ -133,6 +134,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         var latestRelease: UpdateClient.ReleaseAsset? = null
+
+        fun refreshUpdateVersionLine() {
+            val installed = currentVersionName()
+            val latest = latestRelease?.tagName ?: "checking…"
+            tvUpdateVersions.text = "Installed: $installed | Latest: $latest"
+        }
 
         fun setUpdateButtonsEnabled(enabled: Boolean) {
             btnCheckUpdates.isEnabled = enabled
@@ -171,6 +178,7 @@ class MainActivity : AppCompatActivity() {
 
         fun downloadRelease(asset: UpdateClient.ReleaseAsset, autoTriggered: Boolean = false) {
             latestRelease = asset
+            refreshUpdateVersionLine()
             val existing = ApkUpdateInstaller.downloadedFile(this)
             if (existing.exists()) existing.delete()
             val id = ApkUpdateInstaller.enqueueDownload(this, asset)
@@ -192,6 +200,7 @@ class MainActivity : AppCompatActivity() {
                     setUpdateButtonsEnabled(true)
                     result.onSuccess { asset ->
                         latestRelease = asset
+                        refreshUpdateVersionLine()
                         val newer = UpdateClient.isNewerRelease(currentVersionName(), asset.tagName)
                         val downloadedTag = ApkUpdateInstaller.currentDownloadedTag(this)
                         val downloadedFileExists = ApkUpdateInstaller.downloadedFile(this).exists()
@@ -650,6 +659,7 @@ class MainActivity : AppCompatActivity() {
         }
         AlarmNotifier.showWakeAlarm(this)
         AlarmNotifier.clearWakeAlarm(this)
+        refreshUpdateVersionLine()
         refreshDownloadedUpdateState()
         registerReceiver(downloadCompleteReceiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
         if (cbAutoUpdate.isChecked) checkForUpdates(autoTriggered = true)

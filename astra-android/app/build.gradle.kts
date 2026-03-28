@@ -26,8 +26,10 @@ android {
         applicationId = "com.astra.wakeup"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        val injectedVersionCode = (project.findProperty("ASTRA_VERSION_CODE") as String?)?.toIntOrNull()
+        val injectedVersionName = project.findProperty("ASTRA_VERSION_NAME") as String?
+        versionCode = injectedVersionCode ?: 2
+        versionName = injectedVersionName ?: "0.2.0"
     }
 
     buildTypes {

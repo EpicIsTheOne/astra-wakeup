@@ -76,9 +76,23 @@ jobs:
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
 
+      - name: Derive release version metadata
+        id: version_meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_NAME="${INPUT_TAG#v}"
+          VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
+
       - name: Build signed release APK
         run: >-
           ./gradlew --no-daemon --stacktrace
+          -PASTRA_VERSION_NAME="${{ steps.version_meta.outputs.version_name }}"
+          -PASTRA_VERSION_CODE="${{ steps.version_meta.outputs.version_code }}"
           -PASTRA_KEYSTORE_PATH="$RUNNER_TEMP/astra-release.keystore"
           -PASTRA_KEY_ALIAS="$ASTRA_KEY_ALIAS"
           -PASTRA_KEY_PASSWORD="$ASTRA_KEY_PASSWORD"
