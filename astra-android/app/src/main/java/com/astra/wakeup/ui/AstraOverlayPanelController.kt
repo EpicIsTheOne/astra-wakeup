@@ -221,7 +221,8 @@ class AstraOverlayPanelController(
 
     private fun showLatestAstraReply() {
         val latestAstra = conversationTurns.lastOrNull { it.isAstra }?.message
-        tvLatestReply.text = latestAstra ?: "Waiting for Astra to say something interesting…"
+        tvLatestReply.text = latestAstra.orEmpty()
+        tvLatestReply.visibility = if (latestAstra.isNullOrBlank()) View.GONE else View.VISIBLE
         applyLatestReplyExpansion()
     }
 

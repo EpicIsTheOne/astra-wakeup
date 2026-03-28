@@ -195,6 +195,7 @@ class AstraOverlayActivity : AppCompatActivity() {
         if (isAstra) {
             latestReplyExpanded = false
             tvLatestReply.text = message
+            tvLatestReply.visibility = View.VISIBLE
             applyLatestReplyExpansion()
         }
         saveConversationHistory()
