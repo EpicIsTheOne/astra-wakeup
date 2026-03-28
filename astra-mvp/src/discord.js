@@ -19,7 +19,7 @@ export async function sendDiscordDmAudio({ token, userId, filePath, caption }) {
   const data = await fs.readFile(filePath);
   const form = new FormData();
   form.set('content', caption || 'Wake up.');
-  form.set('file', new Blob([data], { type: 'audio/mpeg' }), 'astra-wakeup.mp3');
+  form.set('file', new Blob([data], { type: 'audio/mpeg' }), 'astra.mp3');
 
   const msgRes = await fetch(`https://discord.com/api/v10/channels/${channel.id}/messages`, {
     method: 'POST',

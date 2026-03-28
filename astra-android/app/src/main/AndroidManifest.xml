@@ -24,7 +24,7 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@style/Theme.AstraWakeUp">
+        android:theme="@style/Theme.Astra">
 
         <activity
             android:name=".ui.WakeActivity"
@@ -39,7 +39,7 @@
         <activity
             android:name=".ui.AstraOverlayActivity"
             android:exported="false"
-            android:theme="@style/Theme.AstraWakeUp.OverlayPanel" />
+            android:theme="@style/Theme.Astra.OverlayPanel" />
 
         <activity
             android:name=".ui.InterventionPopupActivity"

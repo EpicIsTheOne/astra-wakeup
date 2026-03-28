@@ -306,7 +306,7 @@ class OpenClawGatewayTransport(
                 put("commands", JSONArray())
                 put("permissions", JSONObject())
                 put("locale", java.util.Locale.getDefault().toLanguageTag())
-                put("userAgent", "astra-wakeup-android/0.2.0")
+                put("userAgent", "astra-android/0.2.0")
             }
 
             buildAuthPayload(config)?.let { params.put("auth", it) }

@@ -1,12 +1,12 @@
 # Astra Android
 
-Yes, this is the real Android app for Astra wake-ups, chat/control, reminders, context features, and direct OpenClaw connection on Android.
+Yes, this is the real Android app for Astras, chat/control, reminders, context features, and direct OpenClaw connection on Android.
 
 ## Current status
 As of the latest token-first UI pass, the Android app can now:
 - connect this phone directly to OpenClaw
 - open chat successfully through the Gateway
-- configure wake behavior from the same app
+- configure alarm and wake behavior from the same app
 - publish fresh debug APKs automatically through GitHub Actions to the rolling `astra-latest` release
 
 The current supported connection path is intentionally **token-first**.
@@ -54,7 +54,7 @@ Notes:
 
 ## Build commands
 ```bash
-cd astra-wakeup-android
+cd astra-android
 ./gradlew assembleDebug
 ```
 

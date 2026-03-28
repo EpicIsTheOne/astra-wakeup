@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AstraWakeUp"
+rootProject.name = "Astra"
 include(":app")

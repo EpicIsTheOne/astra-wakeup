@@ -1,6 +1,6 @@
 # Astra
 
-Android assistant app experiments for Astra: wake-ups, chat, reminders, context, and more.
+Android assistant app experiments for Astra: wake alarms, chat, reminders, context, and more.
 
 ## Quick links
 - **Latest signed APK page:** https://epicistheone.github.io/Astra/
@@ -8,8 +8,8 @@ Android assistant app experiments for Astra: wake-ups, chat, reminders, context,
 - **All releases:** https://github.com/EpicIsTheOne/Astra/releases
 
 ## Repo layout
-- `astra-wakeup-android/` — current Android app project for Astra
-- `astra-wakeup-mvp/` — older MVP bits
+- `astra-android/` — current Android app project for Astra
+- `astra-mvp/` — older MVP bits
 - `docs/` — GitHub Pages download/install page
 
 ## Signed APK behavior

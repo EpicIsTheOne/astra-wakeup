@@ -1,4 +1,4 @@
-# Astra Wake-Up MVP
+# Astra MVP
 
 A local Node app that generates a sassy wake-up line, renders TTS audio, optionally mixes alarm SFX, and DMs it to a Discord user at 7:00 AM ET.
 
@@ -11,7 +11,7 @@ A local Node app that generates a sassy wake-up line, renders TTS audio, optiona
 - Mini control panel (`/`) with **Fire now**, **I'm awake**, **Snooze 10m**
 
 ## Quick start
-1. `cd astra-wakeup-mvp`
+1. `cd astra-mvp`
 2. `cp .env.example .env` and fill secrets
 3. Install deps: `npm i`
 4. Install ffmpeg (`apt install ffmpeg`) if you want SFX mixing

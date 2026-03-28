@@ -142,7 +142,7 @@ class OpenClawNodeService : Service() {
             )
             put("permissions", JSONObject())
             put("locale", Locale.getDefault().toLanguageTag())
-            put("userAgent", "astra-wakeup-android/0.3.0-node")
+            put("userAgent", "astra-android/0.3.0-node")
         }
 
         buildAuthPayload(config)?.let { params.put("auth", it) }

@@ -160,7 +160,7 @@ async function fireWakeup(reason = 'scheduled') {
   const line = buildWakeLine(cfg.wakeUserName, mode);
   const clip = await renderTts(line);
 
-  const caption = `Astra wake-up (${reason})\\n${line}`;
+  const caption = `Astra (${reason})\\n${line}`;
   const msg = await sendDiscordDmAudio({
     token: cfg.discordBotToken,
     userId: cfg.discordUserId,
@@ -181,7 +181,7 @@ async function fireWakeup(reason = 'scheduled') {
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'astra-wakeup-mvp', time: new Date().toISOString() });
+  res.json({ ok: true, service: 'astra-mvp', time: new Date().toISOString() });
 });
 
 app.get('/api/state', (_req, res) => res.json(state));
@@ -548,6 +548,6 @@ cron.schedule(cfg.wakeCron, async () => {
 }, { timezone: cfg.tz });
 
 app.listen(cfg.port, () => {
-  console.log(`Astra Wake-Up MVP running on :${cfg.port}`);
+  console.log(`Astra MVP running on :${cfg.port}`);
   console.log(`Schedule: "${cfg.wakeCron}" @ ${cfg.tz}`);
 });
