@@ -80,6 +80,41 @@
                 android:layout_height="14dp"
                 android:background="@drawable/bg_astra_orb" />
 
+            <LinearLayout
+                android:id="@+id/layoutWaveform"
+                android:layout_width="wrap_content"
+                android:layout_height="20dp"
+                android:layout_marginStart="10dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/viewWave1"
+                    android:layout_width="4dp"
+                    android:layout_height="8dp"
+                    android:background="#C4B5FD" />
+
+                <Space
+                    android:layout_width="3dp"
+                    android:layout_height="1dp" />
+
+                <View
+                    android:id="@+id/viewWave2"
+                    android:layout_width="4dp"
+                    android:layout_height="14dp"
+                    android:background="#DDD6FE" />
+
+                <Space
+                    android:layout_width="3dp"
+                    android:layout_height="1dp" />
+
+                <View
+                    android:id="@+id/viewWave3"
+                    android:layout_width="4dp"
+                    android:layout_height="10dp"
+                    android:background="#C4B5FD" />
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/tvOverlayStatus"
                 android:layout_width="wrap_content"

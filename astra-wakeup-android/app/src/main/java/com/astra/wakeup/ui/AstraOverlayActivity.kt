@@ -46,10 +46,14 @@ class AstraOverlayActivity : AppCompatActivity() {
     private lateinit var tvStatus: TextView
     private lateinit var tvConversation: TextView
     private lateinit var orbView: View
+    private lateinit var wave1: View
+    private lateinit var wave2: View
+    private lateinit var wave3: View
     private lateinit var panelCard: View
     private lateinit var etInput: EditText
     private lateinit var scrollConversation: ScrollView
     private var orbAnimator: ValueAnimator? = null
+    private var waveformAnimator: ValueAnimator? = null
     private lateinit var btnSend: Button
     private lateinit var btnRetryListen: Button
     private lateinit var btnClose: Button
@@ -81,6 +85,9 @@ class AstraOverlayActivity : AppCompatActivity() {
         }
         panelCard = findViewById(R.id.overlayPanelCard)
         orbView = findViewById(R.id.viewOverlayOrb)
+        wave1 = findViewById(R.id.viewWave1)
+        wave2 = findViewById(R.id.viewWave2)
+        wave3 = findViewById(R.id.viewWave3)
         tvTranscript = findViewById(R.id.tvOverlayTranscript)
         tvStatus = findViewById(R.id.tvOverlayStatus)
         tvConversation = findViewById(R.id.tvOverlayConversation)
@@ -231,7 +238,9 @@ class AstraOverlayActivity : AppCompatActivity() {
                 setListeningUi(status = "Speak, darling.", listening = true)
             }
 
-            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onRmsChanged(rmsdB: Float) {
+                updateWaveformFromRms(rmsdB)
+            }
             override fun onBufferReceived(buffer: ByteArray?) = Unit
             override fun onEndOfSpeech() {
                 setListeningUi(status = "Got it. Thinking…", listening = false)
@@ -310,18 +319,29 @@ class AstraOverlayActivity : AppCompatActivity() {
                 orbView.scaleX = 1f
                 orbView.scaleY = 1f
                 orbView.alpha = 0.85f
+                stopWaveformAnimation()
+                setWaveHeights(8, 14, 10)
+                setWaveAlpha(0.45f)
             }
             OrbMode.LISTENING -> {
                 orbView.setBackgroundColor(Color.parseColor("#8B5CF6"))
                 startOrbPulse(0.88f, 1.35f, 760L)
+                startWaveformIdleAnimation()
+                setWaveAlpha(1f)
             }
             OrbMode.THINKING -> {
                 orbView.setBackgroundColor(Color.parseColor("#F59E0B"))
                 startOrbPulse(0.92f, 1.18f, 980L)
+                stopWaveformAnimation()
+                setWaveHeights(6, 10, 6)
+                setWaveAlpha(0.7f)
             }
             OrbMode.SPEAKING -> {
                 orbView.setBackgroundColor(Color.parseColor("#EC4899"))
                 startOrbPulse(0.96f, 1.24f, 520L)
+                stopWaveformAnimation()
+                setWaveHeights(9, 15, 12)
+                setWaveAlpha(0.9f)
             }
         }
     }
@@ -339,6 +359,59 @@ class AstraOverlayActivity : AppCompatActivity() {
             }
             start()
         }
+    }
+
+    private fun updateWaveformFromRms(rmsdB: Float) {
+        val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+        stopWaveformAnimation()
+        val center = (8 + (normalized * 18)).toInt()
+        val side = (6 + (normalized * 12)).toInt()
+        val alt = (7 + (normalized * 15)).toInt()
+        setWaveHeights(side, center, alt)
+        setWaveAlpha((0.78f + normalized * 0.22f).coerceIn(0.78f, 1f))
+    }
+
+    private fun startWaveformIdleAnimation() {
+        if (waveformAnimator?.isRunning == true) return
+        waveformAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 720L
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            addUpdateListener { animator ->
+                val v = animator.animatedValue as Float
+                val h1 = (8 + v * 8).toInt()
+                val h2 = (11 + (1f - v) * 10).toInt()
+                val h3 = (7 + v * 12).toInt()
+                setWaveHeights(h1, h2, h3)
+            }
+            start()
+        }
+    }
+
+    private fun stopWaveformAnimation() {
+        waveformAnimator?.cancel()
+        waveformAnimator = null
+    }
+
+    private fun setWaveHeights(h1Dp: Int, h2Dp: Int, h3Dp: Int) {
+        setWaveHeight(wave1, h1Dp)
+        setWaveHeight(wave2, h2Dp)
+        setWaveHeight(wave3, h3Dp)
+    }
+
+    private fun setWaveHeight(view: View, heightDp: Int) {
+        val px = (heightDp * resources.displayMetrics.density).toInt().coerceAtLeast(4)
+        val lp = view.layoutParams
+        if (lp.height != px) {
+            lp.height = px
+            view.layoutParams = lp
+        }
+    }
+
+    private fun setWaveAlpha(alpha: Float) {
+        wave1.alpha = alpha
+        wave2.alpha = alpha
+        wave3.alpha = alpha
     }
 
     private fun hideKeyboard() {
@@ -371,6 +444,7 @@ class AstraOverlayActivity : AppCompatActivity() {
     override fun onDestroy() {
         orbAnimator?.cancel()
         orbAnimator = null
+        stopWaveformAnimation()
         recognizer?.destroy()
         recognizer = null
         phoneControl.release()
