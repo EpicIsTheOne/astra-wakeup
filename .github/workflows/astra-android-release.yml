@@ -1,16 +1,16 @@
-name: Release Astra Android APK (signed)
+name: Release Astra Android (signed)
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Git tag to publish (example: v0.2.0)'
+        description: 'Git tag to publish (clean format: v0.2.0)'
         required: true
         default: 'v0.2.0'
       release_name:
         description: 'Release title'
         required: true
-        default: 'Astra Wake-Up Android'
+        default: 'Astra Android'
       prerelease:
         description: 'Publish as prerelease'
         required: true
@@ -92,7 +92,7 @@ jobs:
       - name: Upload signed release APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: astra-wakeup-release-apk
+          name: astra-release-apk
           path: astra-wakeup-android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
@@ -101,7 +101,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: astra-wakeup-release-build-logs
+          name: astra-release-build-logs
           path: |
             astra-wakeup-android/app/build/reports
             astra-wakeup-android/app/build/outputs/logs
@@ -123,7 +123,7 @@ jobs:
       - name: Download signed release APK artifact
         uses: actions/download-artifact@v8
         with:
-          name: astra-wakeup-release-apk
+          name: astra-release-apk
           path: dist
 
       - name: Publish signed GitHub release
