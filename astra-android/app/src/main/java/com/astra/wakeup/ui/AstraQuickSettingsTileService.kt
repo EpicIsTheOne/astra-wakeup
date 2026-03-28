@@ -24,11 +24,11 @@ class AstraQuickSettingsTileService : TileService() {
     private fun refreshTile() {
         val tile = qsTile ?: return
         val connected = getSharedPreferences("astra", MODE_PRIVATE).getBoolean("gateway_connected", false)
-        tile.label = "Astra"
+        tile.label = "Astra Panel"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            tile.subtitle = if (connected) "Tap to talk" else "Connect phone first"
+            tile.subtitle = if (connected) "Tap to talk" else "Tap to test"
         }
-        tile.state = if (connected) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        tile.state = Tile.STATE_ACTIVE
         tile.updateTile()
     }
 }

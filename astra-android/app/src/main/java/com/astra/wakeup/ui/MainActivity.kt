@@ -904,15 +904,14 @@ class MainActivity : AppCompatActivity() {
 
         btnOpenAstraPanel.setOnClickListener {
             if (!isConnectedState()) {
-                Toast.makeText(this, "Connect this phone first", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Opening Astra panel in test mode", Toast.LENGTH_SHORT).show()
                 applyConnectionVisualState(
-                    title = "Connect before opening Astra panel",
-                    details = "Finish connecting this phone so the Astra panel has a real OpenClaw session to use.",
-                    banner = "The Astra panel stays locked until this phone connects.",
-                    bannerBackground = "#7C2D12",
-                    bannerText = "#FFEDD5"
+                    title = "Astra panel opened in test mode",
+                    details = "The panel can open without a live connection now. Connect this phone when you want real OpenClaw replies.",
+                    banner = "Astra panel is available even before connection now.",
+                    bannerBackground = "#1E293B",
+                    bannerText = "#E2E8F0"
                 )
-                return@setOnClickListener
             }
             startActivity(Intent(this, AstraOverlayActivity::class.java))
         }

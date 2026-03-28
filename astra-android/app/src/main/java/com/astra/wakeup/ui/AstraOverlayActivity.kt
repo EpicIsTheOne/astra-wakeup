@@ -53,6 +53,7 @@ class AstraOverlayActivity : AppCompatActivity() {
     private lateinit var phoneControl: PhoneControlExecutor
     private lateinit var tvTranscript: TextView
     private lateinit var tvStatus: TextView
+    private lateinit var tvConnectionBanner: TextView
     private lateinit var tvConversation: TextView
     private lateinit var orbView: View
     private lateinit var wave1: View
@@ -99,6 +100,7 @@ class AstraOverlayActivity : AppCompatActivity() {
         wave3 = findViewById(R.id.viewWave3)
         tvTranscript = findViewById(R.id.tvOverlayTranscript)
         tvStatus = findViewById(R.id.tvOverlayStatus)
+        tvConnectionBanner = findViewById(R.id.tvOverlayConnectionBanner)
         tvConversation = findViewById(R.id.tvOverlayConversation)
         etInput = findViewById(R.id.etOverlayInput)
         scrollConversation = findViewById(R.id.scrollOverlayConversation)
@@ -111,6 +113,7 @@ class AstraOverlayActivity : AppCompatActivity() {
         panelCard.animate().translationY(0f).alpha(1f).setDuration(220).start()
 
         loadConversationHistory()
+        updateConnectionBanner()
         updateOrb(OrbMode.IDLE)
         if (conversationTurns.isEmpty()) {
             appendMessage("Astra", "Panel ready. Summon me with a tap, not fake background hotword nonsense.", true)
@@ -137,6 +140,7 @@ class AstraOverlayActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        updateConnectionBanner()
         handler.postDelayed({ startSpeechInput(force = true) }, 250)
     }
 
@@ -239,6 +243,15 @@ class AstraOverlayActivity : AppCompatActivity() {
 
     private fun askAstra(text: String) {
         val gatewayConfig = OpenClawGatewayConfig.fromContext(this)
+        val connected = getSharedPreferences("astra", MODE_PRIVATE).getBoolean("gateway_connected", false)
+        if (!connected) {
+            val reply = "Panel test mode only right now. Connect this phone to OpenClaw and then I can actually answer instead of just standing here looking gorgeous."
+            appendMessage("Astra", reply, true)
+            shouldResumeAfterSpeech = false
+            speak(reply)
+            setListeningUi(status = "Panel test mode: connect this phone for live replies.", listening = false)
+            return
+        }
         waitingForReply = true
         setListeningUi(status = "Astra is thinking…", listening = false)
 
@@ -484,6 +497,16 @@ class AstraOverlayActivity : AppCompatActivity() {
         wave1.alpha = alpha
         wave2.alpha = alpha
         wave3.alpha = alpha
+    }
+
+    private fun updateConnectionBanner() {
+        val connected = getSharedPreferences("astra", MODE_PRIVATE).getBoolean("gateway_connected", false)
+        if (connected) {
+            tvConnectionBanner.visibility = View.GONE
+        } else {
+            tvConnectionBanner.visibility = View.VISIBLE
+            tvConnectionBanner.text = "Astra panel test mode: the panel is launchable now, but live replies need this phone connected to OpenClaw."
+        }
     }
 
     private fun hideKeyboard() {
