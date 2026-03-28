@@ -15,7 +15,6 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -27,6 +26,7 @@ class AstraOverlayService : Service() {
     private var orbParams: WindowManager.LayoutParams? = null
     private var panelView: View? = null
     private var panelParams: WindowManager.LayoutParams? = null
+    private var panelController: AstraOverlayPanelController? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -152,21 +152,17 @@ class AstraOverlayService : Service() {
         if (panelView != null || !AstraOverlayController.canDrawOverlays(this)) return
         removeOrb()
         val panel = LayoutInflater.from(this).inflate(R.layout.activity_astra_overlay, null)
-        panel.findViewById<TextView>(R.id.tvOverlayStatus).text = "Overlay beta panel ready"
-        panel.findViewById<TextView>(R.id.tvOverlayTranscript).text = "This is the real in-service overlay beta. Next step is moving the live chat loop fully in here."
-        panel.findViewById<TextView>(R.id.tvOverlayConnectionBanner).apply {
-            visibility = View.VISIBLE
-            text = "Overlay beta: this floating panel is real now. For the full chat brain, tap Listen or Send to continue in the panel activity while I keep evolving this thing."
-        }
-        panel.findViewById<Button>(R.id.btnOverlayClose).setOnClickListener {
-            collapseToOrb()
-        }
-        panel.findViewById<Button>(R.id.btnOverlayListen).setOnClickListener {
-            startActivity(AstraPanelLauncher.intent(this))
-        }
-        panel.findViewById<Button>(R.id.btnOverlaySend).setOnClickListener {
-            startActivity(AstraPanelLauncher.intent(this))
-        }
+        panelController = AstraOverlayPanelController(
+            context = this,
+            root = panel,
+            requestMicPermission = {
+                startActivity(AstraPanelLauncher.intent(this))
+            },
+            onCloseRequested = {
+                collapseToOrb()
+            }
+        )
+        panelController?.onShow()
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -189,6 +185,8 @@ class AstraOverlayService : Service() {
     }
 
     private fun removePanel() {
+        panelController?.release()
+        panelController = null
         panelView?.let { view -> runCatching { windowManager.removeView(view) } }
         panelView = null
         panelParams = null
