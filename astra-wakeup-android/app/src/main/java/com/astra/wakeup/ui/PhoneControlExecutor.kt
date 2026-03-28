@@ -24,6 +24,8 @@ class PhoneControlExecutor(private val context: Context) : TextToSpeech.OnInitLi
     private var musicPlayer: MediaPlayer? = null
     private var sfxPlayer: MediaPlayer? = null
     private var speechFinishedListener: (() -> Unit)? = null
+    private var speechStartedListener: (() -> Unit)? = null
+    private var isSpeaking = false
     private val audioManager = context.getSystemService(AudioManager::class.java)
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
@@ -65,13 +67,18 @@ class PhoneControlExecutor(private val context: Context) : TextToSpeech.OnInitLi
                     .build()
             )
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) = Unit
+                override fun onStart(utteranceId: String?) {
+                    isSpeaking = true
+                    speechStartedListener?.invoke()
+                }
 
                 override fun onDone(utteranceId: String?) {
+                    isSpeaking = false
                     speechFinishedListener?.invoke()
                 }
 
                 override fun onError(utteranceId: String?) {
+                    isSpeaking = false
                     speechFinishedListener?.invoke()
                 }
             })
@@ -268,9 +275,22 @@ class PhoneControlExecutor(private val context: Context) : TextToSpeech.OnInitLi
         speechFinishedListener = listener
     }
 
+    fun setSpeechStartedListener(listener: (() -> Unit)?) {
+        speechStartedListener = listener
+    }
+
+    fun stopSpeaking() {
+        isSpeaking = false
+        tts?.stop()
+        abandonAlarmAudioFocus()
+    }
+
+    fun isSpeaking(): Boolean = isSpeaking
+
     fun release() {
         stopPlayback()
         speechFinishedListener = null
+        speechStartedListener = null
         tts?.stop()
         tts?.shutdown()
         tts = null

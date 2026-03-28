@@ -37,6 +37,7 @@ class AstraOverlayActivity : AppCompatActivity() {
     private var waitingForReply = false
     private var autoRelistenEnabled = true
     private var shouldResumeAfterSpeech = false
+    private var isAstraSpeaking = false
     private val handler = Handler(Looper.getMainLooper())
     private val openClawChatClient = OpenClawChatClient()
     private lateinit var phoneControl: PhoneControlExecutor
@@ -57,8 +58,17 @@ class AstraOverlayActivity : AppCompatActivity() {
         window.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
 
         phoneControl = PhoneControlExecutor(this)
+        phoneControl.setSpeechStartedListener {
+            runOnUiThread {
+                isAstraSpeaking = true
+                if (!waitingForReply) {
+                    setListeningUi(status = "Astra is speaking… Tap Listen to interrupt.", listening = false)
+                }
+            }
+        }
         phoneControl.setSpeechFinishedListener {
             runOnUiThread {
+                isAstraSpeaking = false
                 if (!isFinishing && !isDestroyed && shouldResumeAfterSpeech && autoRelistenEnabled) {
                     shouldResumeAfterSpeech = false
                     setListeningUi(status = "Listening again…", listening = false)
@@ -84,6 +94,7 @@ class AstraOverlayActivity : AppCompatActivity() {
 
         btnClose.setOnClickListener { finish() }
         btnRetryListen.setOnClickListener {
+            interruptAstraSpeech()
             shouldResumeAfterSpeech = false
             startSpeechInput(force = true)
         }
@@ -106,6 +117,7 @@ class AstraOverlayActivity : AppCompatActivity() {
     private fun submitTypedInput() {
         val text = etInput.text.toString().trim()
         if (text.isBlank()) return
+        interruptAstraSpeech()
         recognizer?.cancel()
         isListening = false
         shouldResumeAfterSpeech = false
@@ -168,8 +180,20 @@ class AstraOverlayActivity : AppCompatActivity() {
         }
     }
 
+    private fun interruptAstraSpeech() {
+        if (!isAstraSpeaking && !phoneControl.isSpeaking()) return
+        shouldResumeAfterSpeech = false
+        isAstraSpeaking = false
+        phoneControl.stopSpeaking()
+        setListeningUi(status = "Interrupted. Listening for you instead.", listening = false)
+    }
+
     private fun startSpeechInput(force: Boolean = false) {
         if (waitingForReply || (isListening && !force)) return
+
+        if (isAstraSpeaking || phoneControl.isSpeaking()) {
+            interruptAstraSpeech()
+        }
 
         shouldResumeAfterSpeech = false
 
@@ -196,6 +220,9 @@ class AstraOverlayActivity : AppCompatActivity() {
             }
 
             override fun onBeginningOfSpeech() {
+                if (isAstraSpeaking || phoneControl.isSpeaking()) {
+                    interruptAstraSpeech()
+                }
                 setListeningUi(status = "Speak, darling.", listening = true)
             }
 
@@ -280,6 +307,7 @@ class AstraOverlayActivity : AppCompatActivity() {
 
     override fun onStop() {
         shouldResumeAfterSpeech = false
+        isAstraSpeaking = false
         recognizer?.cancel()
         isListening = false
         super.onStop()
