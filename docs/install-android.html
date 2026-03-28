@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install Astra on Android</title>
+  <meta name="theme-color" content="#0f1220">
+  <style>
+    :root { color-scheme: dark; --bg:#0b1020; --panel:rgba(18,24,45,.9); --text:#f6f7ff; --muted:#b8c0dc; --line:rgba(255,255,255,.12); --accent:#8ab4ff; }
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,sans-serif;background:linear-gradient(180deg,#11162b 0%,var(--bg) 70%);color:var(--text)}
+    main{max-width:840px;margin:0 auto;padding:32px 20px 60px} .card{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:28px;box-shadow:0 20px 80px rgba(0,0,0,.35)}
+    h1,h2{line-height:1.1} p,li{color:var(--muted);line-height:1.65} a{color:var(--accent)} code{background:rgba(255,255,255,.08);padding:.16rem .36rem;border-radius:.3rem;color:#fff}
+    .cta{display:inline-block;margin:.5rem .75rem .75rem 0;padding:12px 18px;border-radius:999px;border:1px solid var(--line);text-decoration:none;font-weight:700}
+    .primary{background:var(--accent);color:#0d1020;border-color:transparent}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="card">
+      <p><a href="/Astra/">← Back to latest signed APK</a></p>
+      <h1>Install Astra on Android</h1>
+      <p>This page exists so installing Astra is less cursed than hunting random assets by hand.</p>
+      <p>
+        <a class="cta primary" href="/Astra/">Download latest signed Astra APK</a>
+        <a class="cta" href="https://github.com/EpicIsTheOne/Astra/releases">Open releases</a>
+      </p>
+      <h2>First install</h2>
+      <ol>
+        <li>Download the latest signed <code>app-release.apk</code>.</li>
+        <li>On your phone, allow installs from your browser or file manager if Android asks.</li>
+        <li>Open the APK and install Astra.</li>
+      </ol>
+      <h2>If you already installed an older build</h2>
+      <ul>
+        <li>If your current install came from a <strong>debug build</strong> or a <strong>different signing key</strong>, Android may refuse to update over it.</li>
+        <li>If that happens, uninstall the old build once, then install the signed Astra APK.</li>
+        <li>After that, future signed builds should update normally as long as the signing key stays the same.</li>
+      </ul>
+      <h2>What this download page does</h2>
+      <p>The main download page checks GitHub releases and redirects to the newest release asset named <code>app-release.apk</code>, including prereleases.</p>
+    </div>
+  </main>
+</body>
+</html>
