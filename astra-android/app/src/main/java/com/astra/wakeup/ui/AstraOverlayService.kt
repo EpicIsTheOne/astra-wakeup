@@ -11,9 +11,11 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -23,6 +25,8 @@ class AstraOverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private var orbView: View? = null
     private var orbParams: WindowManager.LayoutParams? = null
+    private var panelView: View? = null
+    private var panelParams: WindowManager.LayoutParams? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -36,6 +40,11 @@ class AstraOverlayService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+            ACTION_EXPAND -> {
+                startForeground(NOTIFICATION_ID, buildNotification())
+                showPanelIfNeeded()
+                return START_STICKY
+            }
             else -> {
                 startForeground(NOTIFICATION_ID, buildNotification())
                 showOrbIfNeeded()
@@ -45,6 +54,7 @@ class AstraOverlayService : Service() {
     }
 
     override fun onDestroy() {
+        removePanel()
         removeOrb()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
@@ -53,7 +63,12 @@ class AstraOverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun buildNotification(): Notification {
-        val openPending = AstraPanelLauncher.pendingIntent(this, 7103)
+        val expandPending = PendingIntent.getService(
+            this,
+            7103,
+            Intent(this, AstraOverlayService::class.java).apply { action = ACTION_EXPAND },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val stopPending = PendingIntent.getService(
             this,
             7104,
@@ -65,8 +80,8 @@ class AstraOverlayService : Service() {
             .setContentTitle("Astra overlay")
             .setContentText("Floating orb ready. Tap to summon Astra from anywhere.")
             .setOngoing(true)
-            .setContentIntent(openPending)
-            .addAction(0, "Open panel", openPending)
+            .setContentIntent(expandPending)
+            .addAction(0, "Open panel", expandPending)
             .addAction(0, "Stop overlay", stopPending)
             .build()
     }
@@ -120,7 +135,7 @@ class AstraOverlayService : Service() {
                 MotionEvent.ACTION_UP -> {
                     val moved = kotlin.math.abs(event.rawX - touchX) > 10 || kotlin.math.abs(event.rawY - touchY) > 10
                     if (!moved) {
-                        startActivity(AstraPanelLauncher.intent(this))
+                        showPanelIfNeeded()
                     }
                     true
                 }
@@ -131,6 +146,52 @@ class AstraOverlayService : Service() {
         runCatching { windowManager.addView(orb, params) }
         orbView = orb
         orbParams = params
+    }
+
+    private fun showPanelIfNeeded() {
+        if (panelView != null || !AstraOverlayController.canDrawOverlays(this)) return
+        removeOrb()
+        val panel = LayoutInflater.from(this).inflate(R.layout.activity_astra_overlay, null)
+        panel.findViewById<TextView>(R.id.tvOverlayStatus).text = "Overlay beta panel ready"
+        panel.findViewById<TextView>(R.id.tvOverlayTranscript).text = "This is the real in-service overlay beta. Next step is moving the live chat loop fully in here."
+        panel.findViewById<TextView>(R.id.tvOverlayConnectionBanner).apply {
+            visibility = View.VISIBLE
+            text = "Overlay beta: this floating panel is real now. For the full chat brain, tap Listen or Send to continue in the panel activity while I keep evolving this thing."
+        }
+        panel.findViewById<Button>(R.id.btnOverlayClose).setOnClickListener {
+            collapseToOrb()
+        }
+        panel.findViewById<Button>(R.id.btnOverlayListen).setOnClickListener {
+            startActivity(AstraPanelLauncher.intent(this))
+        }
+        panel.findViewById<Button>(R.id.btnOverlaySend).setOnClickListener {
+            startActivity(AstraPanelLauncher.intent(this))
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            x = 0
+            y = 0
+        }
+        runCatching { windowManager.addView(panel, params) }
+        panelView = panel
+        panelParams = params
+    }
+
+    private fun collapseToOrb() {
+        removePanel()
+        showOrbIfNeeded()
+    }
+
+    private fun removePanel() {
+        panelView?.let { view -> runCatching { windowManager.removeView(view) } }
+        panelView = null
+        panelParams = null
     }
 
     private fun removeOrb() {
@@ -150,6 +211,7 @@ class AstraOverlayService : Service() {
 
     companion object {
         const val ACTION_STOP = "com.astra.wakeup.action.STOP_ASTRA_OVERLAY"
+        const val ACTION_EXPAND = "com.astra.wakeup.action.EXPAND_ASTRA_OVERLAY"
         private const val CHANNEL_ID = "astra_overlay"
         private const val NOTIFICATION_ID = 7110
     }
