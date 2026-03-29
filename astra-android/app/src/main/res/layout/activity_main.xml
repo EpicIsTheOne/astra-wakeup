@@ -514,6 +514,15 @@
                 android:backgroundTint="#7C3AED"
                 android:text="Open Reminders + Task Board"
                 android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/btnRepairAppState"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:backgroundTint="#7F1D1D"
+                android:text="Repair app state without uninstalling"
+                android:textColor="#FFFFFF" />
         </LinearLayout>
 
 

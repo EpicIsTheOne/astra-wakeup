@@ -6,5 +6,6 @@ class AstraApp : Application() {
     override fun onCreate() {
         super.onCreate()
         AstraCrashStore.install(this)
+        AppUpgradeManager.runStartupMaintenance(this)
     }
 }

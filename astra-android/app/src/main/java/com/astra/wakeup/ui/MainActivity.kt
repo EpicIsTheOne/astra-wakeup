@@ -22,6 +22,7 @@ import android.widget.TextView
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.astra.wakeup.AppUpgradeManager
 import com.astra.wakeup.AstraCrashReport
 import com.astra.wakeup.AstraCrashStore
 import com.astra.wakeup.R
@@ -195,6 +196,7 @@ class MainActivity : AppCompatActivity() {
         val btnOpenChat = findViewById<Button>(R.id.btnOpenChat)
         val btnOpenAstraPanel = findViewById<Button>(R.id.btnOpenAstraPanel)
         val btnOpenReminders = findViewById<Button>(R.id.btnOpenReminders)
+        val btnRepairAppState = findViewById<Button>(R.id.btnRepairAppState)
         val btnPickWakeTime = findViewById<Button>(R.id.btnPickWakeTime)
         val seekVoiceVolume = findViewById<SeekBar>(R.id.seekVoiceVolume)
         val seekMusicVolume = findViewById<SeekBar>(R.id.seekMusicVolume)
@@ -1098,6 +1100,28 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             startActivity(Intent(this, RemindersActivity::class.java))
+        }
+
+        btnRepairAppState.setOnClickListener {
+            AppUpgradeManager.repairRuntimeState(
+                context = this,
+                clearOverlayConversation = false,
+                clearLegacyGatewayAuth = true
+            )
+            cbOverlayEnabled.isChecked = AstraOverlayController.isOverlayEnabled(this)
+            refreshGatewayAuthInputsFromPrefs()
+            refreshSecondaryCards()
+            refreshWakeAlarmStatus()
+            refreshInterventionStatus()
+            refreshGatewayDebug("manual repair completed")
+            applyConnectionVisualState(
+                title = "Astra repaired runtime state",
+                details = "Stopped lingering services, cleared stale updater/runtime flags, and reset old gateway auth leftovers. Your normal settings were kept.",
+                banner = "Repair complete. Reconnect this phone if needed.",
+                bannerBackground = "#14532D",
+                bannerText = "#DCFCE7"
+            )
+            Toast.makeText(this, "Astra repaired app state without uninstalling", Toast.LENGTH_LONG).show()
         }
 
         cbInterventionsEnabled.setOnCheckedChangeListener { _, isChecked ->
