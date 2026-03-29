@@ -36,11 +36,7 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
     private fun currentVersionName(): String = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0"
     private fun startNodeServiceSafely(onFailure: (() -> Unit)? = null) {
-        runCatching { OpenClawNodeService.start(this) }
-            .onFailure { err ->
-                Log.e("MainActivity", "Failed to start OpenClawNodeService", err)
-                onFailure?.invoke()
-            }
+        // Bridge-first mode intentionally does not start the legacy direct-gateway node service.
     }
 
     private fun startContextEngineSafely(onFailure: (() -> Unit)? = null) {
@@ -736,31 +732,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         fun connectThisPhone() {
-            saveMainSettings()
+            saveMainSettings(includeGatewayAuthInputs = false)
             val apiUrl = etApiUrl.text.toString().trim()
-            val gatewayToken = etGatewayToken.text.toString().trim()
-            val config = OpenClawGatewayConfig.fromContext(this)
 
             if (apiUrl.isBlank()) {
                 setConnectedState(false)
                 refreshSecondaryCards()
                 applyConnectionVisualState(
-                    title = "Add your OpenClaw URL",
-                    details = "Enter your OpenClaw URL, then tap Connect this phone.",
-                    banner = "OpenClaw URL is required.",
-                    bannerBackground = "#7C2D12",
-                    bannerText = "#FFEDD5"
-                )
-                return
-            }
-
-            if (config.authMode() == GatewayAuthMode.NONE) {
-                setConnectedState(false)
-                refreshSecondaryCards()
-                applyConnectionVisualState(
-                    title = if (gatewayToken.isBlank()) "Add your gateway token" else "Add gateway auth",
-                    details = "Enter a shared gateway token or bootstrap token, or reconnect with an already paired device token.",
-                    banner = "Gateway auth is required before this phone can connect.",
+                    title = "Add your Astra base URL",
+                    details = "Enter your Astra / Command Center base URL, then tap Connect this phone.",
+                    banner = "Astra base URL is required.",
                     bannerBackground = "#7C2D12",
                     bannerText = "#FFEDD5"
                 )
@@ -770,126 +751,54 @@ class MainActivity : AppCompatActivity() {
             setConnectBusy(true, "Connecting…")
             applyConnectionVisualState(
                 title = "Connecting this phone…",
-                details = "Starting secure handshake with OpenClaw.",
-                banner = "Connecting this phone to OpenClaw…",
+                details = "Checking the Command Center bridge.",
+                banner = "Connecting this phone to Astra bridge…",
                 bannerBackground = "#1E293B",
                 bannerText = "#E2E8F0"
             )
-            tvHealthChip.text = "Gateway status: checking"
+            tvHealthChip.text = "Bridge status: checking"
             tvLineChip.text = "Connection state: connecting"
             tvChatChip.text = "Chat state: locked"
 
             Thread {
                 val chatClient = OpenClawChatClient()
-                var result = chatClient.probe(this)
-                val initialError = result.exceptionOrNull()?.message.orEmpty()
-                val initialIssue = OpenClawGatewayDiagnostics.classify(initialError)
-
-                if (result.isFailure && initialIssue?.code == "PAIRING_REQUIRED") {
-                    runOnUiThread {
-                        setConnectedState(false)
-                        refreshSecondaryCards()
-                        applyConnectionVisualState(
-                            title = "Waiting for approval",
-                            details = "OpenClaw is waiting for device approval. Astra will pause before retrying so it does not spam fresh pair codes while you're approving.",
-                            banner = "Approve this device in OpenClaw to finish pairing. Astra will retry shortly.",
-                            bannerBackground = "#7C2D12",
-                            bannerText = "#FFEDD5"
-                        )
-                        tvHealthChip.text = "Gateway status: awaiting approval"
-                        tvLineChip.text = "Connection state: waiting for approval"
-                        tvChatChip.text = "Chat state: locked"
-                        refreshGatewayDebug(initialError)
-                    }
-
-                    val retryDelaysMs = listOf(8000L, 12000L)
-                    for ((attemptIndex, delayMs) in retryDelaysMs.withIndex()) {
-                        Thread.sleep(delayMs)
-                        result = chatClient.probe(this)
-                        if (result.isSuccess) break
-                        val retryError = result.exceptionOrNull()?.message.orEmpty()
-                        val retryIssue = OpenClawGatewayDiagnostics.classify(retryError)
-                        if (retryIssue?.code != "PAIRING_REQUIRED") break
-                        runOnUiThread {
-                            applyConnectionVisualState(
-                                title = "Waiting for approval",
-                                details = "Still waiting for OpenClaw approval. Astra is using slow retry ${attemptIndex + 1}/${retryDelaysMs.size} after ${delayMs / 1000}s so it does not replace the pending pair code too quickly.",
-                                banner = "Approve this device in OpenClaw to finish pairing.",
-                                bannerBackground = "#7C2D12",
-                                bannerText = "#FFEDD5"
-                            )
-                            tvHealthChip.text = "Gateway status: awaiting approval"
-                            tvLineChip.text = "Connection state: polling approval"
-                            tvChatChip.text = "Chat state: locked"
-                            refreshGatewayDebug(retryError)
-                        }
-                    }
-                }
+                val result = chatClient.probe(this)
 
                 runOnUiThread {
                     setConnectBusy(false)
                     result.onSuccess { session ->
                         val server = session.helloPayload.optJSONObject("server")
                         val version = server?.optString("version").orEmpty().ifBlank { "unknown" }
-                        val connId = server?.optString("connId").orEmpty().ifBlank { "?" }
-                        val grantedScopes = gatewayGrantedScopes(session.helloPayload)
-                        val missingWriteScope = grantedScopes.isNotEmpty() && !grantedScopes.contains("operator.write")
+                        val connId = server?.optString("connId").orEmpty().ifBlank { "commandcenter-bridge" }
                         saveMainSettings(includeGatewayAuthInputs = false)
-                        refreshGatewayAuthInputsFromPrefs()
                         prefs.edit().putBoolean("gateway_auto_connect", true).apply()
-                        setConnectedState(!missingWriteScope)
+                        setConnectedState(true)
                         refreshSecondaryCards()
-                        if (missingWriteScope) {
-                            applyConnectionVisualState(
-                                title = "Connected with limited permissions",
-                                details = "OpenClaw accepted the connection, but granted scopes=${grantedScopes.joinToString(",")}. Astra chat needs operator.write.",
-                                banner = "This auth can connect, but it can't send chat yet. Use a write-capable token or pair this device.",
-                                bannerBackground = "#7C2D12",
-                                bannerText = "#FFEDD5"
-                            )
-                            tvHealthChip.text = "Gateway status: reachable"
-                            tvLineChip.text = "Connection state: limited"
-                            tvChatChip.text = "Chat state: write scope missing"
-                            refreshGatewayDebug("missing scope: operator.write")
-                        } else {
-                            applyConnectionVisualState(
-                                title = "Phone connected",
-                                details = "Chat and wake controls are ready. serverVersion=$version, connId=$connId",
-                                banner = "Connected. Chat and wake controls are unlocked.",
-                                bannerBackground = "#14532D",
-                                bannerText = "#DCFCE7"
-                            )
-                            tvHealthChip.text = "Gateway status: reachable"
-                            tvLineChip.text = "Connection state: ready"
-                            tvChatChip.text = "Chat state: ready"
-                            startNodeServiceSafely()
-                            refreshWakeMediaStatus()
-                            refreshGatewayDebug()
-                        }
+                        applyConnectionVisualState(
+                            title = "Phone connected",
+                            details = "Astra is using the Command Center bridge. bridgeMode=$version, connId=$connId",
+                            banner = "Connected through Command Center bridge.",
+                            bannerBackground = "#14532D",
+                            bannerText = "#DCFCE7"
+                        )
+                        tvHealthChip.text = "Bridge status: reachable"
+                        tvLineChip.text = "Connection state: ready"
+                        tvChatChip.text = "Chat state: ready"
+                        refreshWakeMediaStatus()
+                        refreshGatewayDebug("bridge mode active")
                     }.onFailure { err ->
                         val msg = err.message ?: "connect failed"
-                        val issue = OpenClawGatewayDiagnostics.classify(msg)
                         setConnectedState(false)
                         refreshSecondaryCards()
                         applyConnectionVisualState(
-                            title = when (issue?.code) {
-                                "AUTH_TOKEN_MISSING" -> "Gateway token missing"
-                                "AUTH_TOKEN_MISMATCH" -> "Gateway token mismatch"
-                                "PAIRING_REQUIRED" -> "Approval not seen yet"
-                                else -> "Connection failed"
-                            },
-                            details = OpenClawGatewayDiagnostics.describeStatus(this, msg),
-                            banner = when (issue?.code) {
-                                "AUTH_TOKEN_MISSING" -> "Add the shared gateway token, then try again."
-                                "AUTH_TOKEN_MISMATCH" -> "The saved gateway token does not match OpenClaw."
-                                "PAIRING_REQUIRED" -> "Approval did not complete in time. Try Connect again right after approving."
-                                else -> "Check the URL or gateway token and try again."
-                            },
+                            title = "Bridge unavailable",
+                            details = msg,
+                            banner = "Astra could not reach the Command Center bridge.",
                             bannerBackground = "#7F1D1D",
                             bannerText = "#FEE2E2"
                         )
-                        tvHealthChip.text = "Gateway status: needs attention"
-                        tvLineChip.text = if (issue?.code == "PAIRING_REQUIRED") "Connection state: approval timed out" else "Connection state: failed"
+                        tvHealthChip.text = "Bridge status: needs attention"
+                        tvLineChip.text = "Connection state: failed"
                         tvChatChip.text = "Chat state: locked"
                         refreshGatewayDebug(msg)
                     }
@@ -1047,9 +956,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnClearDeviceToken).setOnClickListener {
-            OpenClawGatewayAuthStore.clearDeviceToken(this)
-            refreshGatewayDebug("device token cleared")
-            Toast.makeText(this, "Cleared cached device token", Toast.LENGTH_SHORT).show()
+            refreshGatewayDebug("bridge mode active; legacy device token controls are unused")
+            Toast.makeText(this, "Bridge mode does not use device tokens", Toast.LENGTH_SHORT).show()
         }
 
         findViewById<Button>(R.id.btnClearGatewayAuth).setOnClickListener {
@@ -1060,15 +968,15 @@ class MainActivity : AppCompatActivity() {
             etBootstrapToken.setText("")
             setConnectedState(false)
             refreshSecondaryCards()
-            refreshGatewayDebug("all gateway auth cleared")
+            refreshGatewayDebug("bridge settings reset")
             applyConnectionVisualState(
                 title = "This phone is not connected yet",
-                details = "Enter your OpenClaw URL and shared gateway token, then tap Connect this phone.",
-                banner = "Cleared saved gateway auth.",
+                details = "Astra now connects through the Command Center bridge. Confirm the base URL and tap Connect this phone.",
+                banner = "Cleared legacy direct-gateway auth fields.",
                 bannerBackground = "#1E293B",
                 bannerText = "#E2E8F0"
             )
-            Toast.makeText(this, "Cleared shared/bootstrap/device auth", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Cleared legacy direct-gateway auth", Toast.LENGTH_SHORT).show()
         }
 
         btnSchedule.setOnClickListener {

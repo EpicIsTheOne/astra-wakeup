@@ -1,62 +1,62 @@
 # Astra Android
 
-Yes, this is the real Android app for Astra: wake alarms, chat/control, reminders, context features, and direct OpenClaw connection on Android.
+Astra Android is now **bridge-first**.
+
+It no longer relies on the old direct Android ↔ OpenClaw Gateway pairing / device-token flow for normal operation.
+The supported path is now:
+
+- **Astra Android app** → **Command Center backend bridge** (`https://techexplore.us/commandcenter`)
+- **Command Center backend bridge** → **OpenClaw**
 
 ## Current status
-As of the current session, the Android app can now:
-- connect this phone directly to OpenClaw
-- open chat successfully through the Gateway
-- configure alarm and wake behavior from the same app
-- publish fresh debug APKs automatically through GitHub Actions to the rolling `astra-latest` release
-- build signed release APKs through a manual GitHub Actions workflow
-- check for newer signed builds from inside the app and hand them off to Android installer flow
+As of the current repo state, the Android app can now:
+- auto-default its base URL to `https://techexplore.us`
+- connect through the Command Center bridge without manual pairing on Android
+- send chat through `/commandcenter/api/chat/direct`
+- receive replies through `/commandcenter/ws`
+- target the backend primary agent (`orchestrator`) by default
+- keep wake / reminder / app flows using the same bridge-backed chat path
+- build signed release APKs through GitHub Actions
+- check for newer signed builds from inside the app
 
-The current supported connection path is intentionally **token-first**.
+## Supported connection path
+This is the intended path now:
+1. Open Astra Android
+2. Let the app use the default base URL (`https://techexplore.us`) unless you intentionally host the bridge elsewhere
+3. Tap **Connect this phone**
+4. Astra checks the Command Center bridge
+5. Chat / wake-related app features use the bridge-backed path
 
-## What it does now
-- Schedules an exact daily alarm for 5:50 AM (America/New_York).
-- Opens a full-screen wake activity at alarm time.
-- Uses Android TTS (female-ish pitched voice) to read wake lines.
-- Fetches dynamic lines from OpenClaw wake API (`/api/wakeup/line`).
-- Punishment loop: repeats taunts + random SFX until acknowledged.
-- Supports **I'm awake** and **Snooze 10 min**.
-- Reschedules after reboot.
-- Connects directly to the OpenClaw Gateway for chat/control.
-- Persists per-install device identity and paired-device auth state.
-- Includes an in-app updater for signed releases.
+## Important architecture note
+### Old path: deprecated
+Deprecated for normal use:
+- direct Android gateway auth
+- Android pairing approvals
+- bootstrap token / shared-token / device-token juggling on-device
+- Android device-signature handshake as the primary UX path
 
-## Supported OpenClaw connect flow (current)
-Main UI now supports this path first:
-- OpenClaw URL
-- shared gateway token
-- tap **Connect this phone**
-- if OpenClaw asks for approval, approve the pending Android device
-- then reconnect and use chat/wake controls normally
+Those codepaths may still exist in the repo as legacy scaffolding, but they are no longer the intended production connection model.
 
-### Current working values on the active server
-- OpenClaw URL: `http://72.60.29.204:18789`
-- Gateway auth mode: `token`
-- Gateway bind: `lan`
-- Public device-pair URL source: `plugins.entries.device-pair.config.publicUrl`
+### New path: bridge-first
+Primary connection model:
+- backend bridge handles OpenClaw-facing connection/auth concerns
+- Android behaves as a client of the backend
+- this mirrors the working Command Center architecture on the server
 
-## UX direction
-The home screen is now intentionally organized as:
-1. **Connect this phone**
-2. **Wake controls**
-3. **Chat**
-4. **Updater**
-5. **Interventions**
+## Backend reference implementation
+Working bridge reference on this server:
+- `/root/.openclaw/workspace/openclaw-command-center/server/openclaw-bridge.js`
+- `/root/.openclaw/workspace/openclaw-command-center/server/index.js`
 
-Notes:
-- pairing/bootstrap UX is currently de-emphasized and removed from the main screen because the shared-token path is more reliable right now
-- advanced/debug gateway controls are hidden behind **Advanced gateway options**
-- wake + chat are visually gated behind connection state
-- updater is aimed at rapid signed-build testing
+Key behavior:
+- bridge websocket: `/commandcenter/ws`
+- direct chat send: `/commandcenter/api/chat/direct`
+- bridge status: `/commandcenter/api/status`
+- backend default agent: `orchestrator`
 
-## Build prerequisites (on a machine with Android SDK)
-- Java 17
-- Android SDK + platform tools
-- Gradle (or Android Studio)
+## Defaults
+- Default base URL: `https://techexplore.us`
+- Default bridge agent/session target: `orchestrator`
 
 ## Build commands
 ```bash
@@ -67,70 +67,19 @@ cd astra-android
 APK path:
 `app/build/outputs/apk/debug/app-debug.apk`
 
-## GitHub Actions rolling debug APK
-This repo builds and publishes a rolling debug APK on pushes to `main`.
-
-### Workflow
-- **Build Astra Android**
-
-### Rolling release
-- tag: `astra-latest`
-- asset: `app-debug.apk`
-
-Direct download pattern:
-`https://github.com/EpicIsTheOne/Astra/releases/download/astra-latest/app-debug.apk`
-
-## Signed release workflow
-The repo also supports a manual signed-release workflow.
-
-### Workflow
+## Signed releases
+Manual signed release workflow:
 - **Release Astra Android (signed)**
 
-### Signed release artifact
-- asset: `app-release.apk`
+Signed release asset:
+- `app-release.apk`
 
-### Signed release behavior
-- `versionName` is derived from the workflow tag input, e.g. `v0.2.1` → `0.2.1`
-- `versionCode` is derived from the GitHub Actions run number
-- this is intentional so Android update-over-install behaves correctly for testing
+## Current priorities
+1. Keep bridge-backed chat/wake/reminder flows working
+2. Continue removing or hiding legacy direct-gateway UI/auth paths
+3. Add clearer in-app status text that explicitly says **Connected via Command Center bridge**
+4. Only touch old Android pairing code if there is a deliberate migration/debug reason
 
-See `RELEASE_SIGNING.md` for the secrets/setup details.
-
-## In-app updater
-The updater card on the main screen can:
-- auto-check on launch
-- auto-download newer signed releases
-- show installed vs latest version
-- preview release notes from GitHub release body text
-- skip one specific version
-- launch Android installer for the downloaded APK
-
-Important reality check:
-- on stock Android, the final install still usually needs a user confirmation tap
-- fully silent installs are not expected without elevated device privileges
-
-## Floating overlay status
-The floating Astra overlay was recently reworked away from the old bulky transcript-heavy panel.
-
-Current overlay direction:
-- compact bottom overlay instead of mini full-screen chat sheet
-- latest Astra reply is the primary visible response surface
-- no visible assistant title/subtitle or close button
-- dismissal is handled by swiping down on the drag handle
-- live speech partials/final text feed into the input field
-- long replies are line-capped by default and expand on tap
-- outside-panel background is transparent rather than dimmed
-- empty reply state is hidden until Astra actually has something to say
-
-Recent release note:
-- `v0.2.11` specifically hotfixed a serious overlay regression where the panel could act like a fullscreen touch-blocking blanket and become difficult to dismiss
-
-## Still TODO
-- Validate the latest overlay hotfix carefully on-device, especially dismissal reliability and outside-touch behavior.
-- Decide whether the latest-reply surface should stay tappable-to-expand or gain a more explicit affordance.
-- Finish smoothing auth edge-cases so approval/token/device-token behavior feels fully seamless.
-- Polish chat UI to match the improved main screen.
-- Polish spacing/iconography/status visuals on the main screen even further.
-- Bundle custom SFX pack and volume profiles.
-- Reintroduce a better pairing-code path later if/when it is truly reliable.
-- Consider replacing `softprops/action-gh-release@v2` later if the lingering Node 20 warning ever becomes operationally annoying.
+## Rule for future work
+If a future change tries to reintroduce Android-first gateway pairing as the normal path, that is probably the wrong move.
+Prefer extending the backend bridge instead.
