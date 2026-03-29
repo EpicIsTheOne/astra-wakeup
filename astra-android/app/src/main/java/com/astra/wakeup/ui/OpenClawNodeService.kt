@@ -3,11 +3,12 @@ package com.astra.wakeup.ui
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.app.PendingIntent
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -35,20 +36,34 @@ class OpenClawNodeService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        controlExecutor = PhoneControlExecutor(this)
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification("Connecting to OpenClaw node control…"))
-        connect()
+        runCatching {
+            controlExecutor = PhoneControlExecutor(this)
+            createNotificationChannel()
+            startForeground(NOTIFICATION_ID, buildNotification("Connecting to OpenClaw node control…"))
+            connect()
+        }.onFailure { err ->
+            Log.e(TAG, "Node service failed during onCreate", err)
+            safeDisableConnectedState()
+            stopSelf()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            shuttingDown = true
+        return runCatching {
+            if (intent?.action == ACTION_STOP) {
+                shuttingDown = true
+                stopSelf()
+                START_NOT_STICKY
+            } else {
+                if (ws == null) connect()
+                START_STICKY
+            }
+        }.getOrElse { err ->
+            Log.e(TAG, "Node service failed during onStartCommand", err)
+            safeDisableConnectedState()
             stopSelf()
-            return START_NOT_STICKY
+            START_NOT_STICKY
         }
-        if (ws == null) connect()
-        return START_STICKY
     }
 
     override fun onDestroy() {
@@ -63,34 +78,42 @@ class OpenClawNodeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun connect() {
-        val config = OpenClawGatewayConfig.fromContext(this)
-        if (config.wsUrl.isBlank()) {
-            updateNotification("Node control idle: missing Gateway URL")
-            return
+        runCatching {
+            val config = OpenClawGatewayConfig.fromContext(this)
+            if (config.wsUrl.isBlank()) {
+                updateNotification("Node control idle: missing Gateway URL")
+                return
+            }
+
+            val request = Request.Builder().url(config.wsUrl).build()
+            ws = client.newWebSocket(request, object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    reconnectAttempts = 0
+                    runCatching { updateNotification("OpenClaw node connected") }
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    runCatching { handleFrame(webSocket, text) }
+                        .onFailure { err -> Log.e(TAG, "Failed handling node frame", err) }
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    Log.w(TAG, "node websocket failure", t)
+                    runCatching { updateNotification("Node control reconnecting…") }
+                    scheduleReconnect()
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    runCatching { updateNotification("Node control disconnected") }
+                    if (!shuttingDown) scheduleReconnect()
+                }
+            })
+        }.onFailure { err ->
+            Log.e(TAG, "Node service failed during connect", err)
+            safeDisableConnectedState()
+            runCatching { updateNotification("Node control disabled after startup failure") }
+            stopSelf()
         }
-
-        val request = Request.Builder().url(config.wsUrl).build()
-        ws = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                reconnectAttempts = 0
-                updateNotification("OpenClaw node connected")
-            }
-
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                handleFrame(webSocket, text)
-            }
-
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.w(TAG, "node websocket failure", t)
-                updateNotification("Node control reconnecting…")
-                scheduleReconnect()
-            }
-
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                updateNotification("Node control disconnected")
-                if (!shuttingDown) scheduleReconnect()
-            }
-        })
     }
 
     private fun handleFrame(webSocket: WebSocket, text: String) {
@@ -198,12 +221,11 @@ class OpenClawNodeService : Service() {
         wsRef.send(res.toString())
     }
 
-
     private fun scheduleReconnect() {
         if (shuttingDown) return
         reconnectAttempts += 1
         val delayMs = (2_000L * reconnectAttempts).coerceAtMost(15_000L)
-        android.os.Handler(mainLooper).postDelayed({
+        Handler(mainLooper).postDelayed({
             if (!shuttingDown) connect()
         }, delayMs)
     }
@@ -248,6 +270,15 @@ class OpenClawNodeService : Service() {
         nm.notify(NOTIFICATION_ID, buildNotification(text))
     }
 
+    private fun safeDisableConnectedState() {
+        runCatching {
+            getSharedPreferences("astra", MODE_PRIVATE)
+                .edit()
+                .putBoolean("gateway_connected", false)
+                .apply()
+        }
+    }
+
     companion object {
         private const val TAG = "OpenClawNodeService"
         private const val CHANNEL_ID = "astra_node_control"
@@ -263,8 +294,7 @@ class OpenClawNodeService : Service() {
 
         fun stop(context: Context) {
             val intent = Intent(context, OpenClawNodeService::class.java).apply { action = ACTION_STOP }
-            context.startService(intent)
+            runCatching { context.startService(intent) }
         }
-
     }
 }
