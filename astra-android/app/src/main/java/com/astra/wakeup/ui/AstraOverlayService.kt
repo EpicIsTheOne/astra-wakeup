@@ -226,5 +226,6 @@ class AstraOverlayService : Service() {
         const val ACTION_EXPAND = "com.astra.wakeup.action.EXPAND_ASTRA_OVERLAY"
         private const val CHANNEL_ID = "astra_overlay"
         private const val NOTIFICATION_ID = 7110
+        private const val OUTSIDE_DOUBLE_TAP_WINDOW_MS = 450L
     }
 }

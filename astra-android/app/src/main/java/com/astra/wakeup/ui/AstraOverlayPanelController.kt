@@ -46,6 +46,7 @@ class AstraOverlayPanelController(
     private val conversationTurns = mutableListOf<ConversationTurn>()
 
     private val panelCard: View = root.findViewById(R.id.overlayPanelCard)
+    private val dragHandleTouchTarget: View = root.findViewById(R.id.viewOverlayDragHandleTouchTarget)
     private val dragHandle: View = root.findViewById(R.id.viewOverlayDragHandle)
     private val orbView: View = root.findViewById(R.id.viewOverlayOrb)
     private val wave1: View = root.findViewById(R.id.viewWave1)
@@ -125,11 +126,13 @@ class AstraOverlayPanelController(
 
     private fun installSwipeToDismiss() {
         var downY = 0f
+        var downX = 0f
         var dragging = false
-        dragHandle.setOnTouchListener { _, event ->
+        dragHandleTouchTarget.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downY = event.rawY
+                    downX = event.rawX
                     dragging = false
                     true
                 }
@@ -140,9 +143,15 @@ class AstraOverlayPanelController(
                     panelCard.alpha = (1f - (deltaY / 600f)).coerceIn(0.72f, 1f)
                     true
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                MotionEvent.ACTION_UP -> {
                     val deltaY = (event.rawY - downY).coerceAtLeast(0f)
+                    val deltaX = kotlin.math.abs(event.rawX - downX)
                     if (dragging && deltaY > 120f) {
+                        interruptAstraSpeech()
+                        panelCard.animate().translationY(panelCard.height.toFloat() + 120f).alpha(0f).setDuration(160).withEndAction {
+                            onCloseRequested?.invoke()
+                        }.start()
+                    } else if (!dragging && deltaY < 18f && deltaX < 24f) {
                         interruptAstraSpeech()
                         panelCard.animate().translationY(panelCard.height.toFloat() + 120f).alpha(0f).setDuration(160).withEndAction {
                             onCloseRequested?.invoke()
@@ -150,6 +159,10 @@ class AstraOverlayPanelController(
                     } else {
                         panelCard.animate().translationY(0f).alpha(1f).setDuration(180).start()
                     }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    panelCard.animate().translationY(0f).alpha(1f).setDuration(180).start()
                     true
                 }
                 else -> false
