@@ -11,6 +11,7 @@ import android.database.Cursor
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -31,6 +32,26 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private fun currentVersionName(): String = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0"
+
+    private fun startNodeServiceSafely(onFailure: (() -> Unit)? = null) {
+        runCatching { OpenClawNodeService.start(this) }
+            .onFailure { err ->
+                Log.e("MainActivity", "Failed to start OpenClawNodeService", err)
+                onFailure?.invoke()
+            }
+    }
+
+    private fun startContextEngineSafely(onFailure: (() -> Unit)? = null) {
+        runCatching {
+            androidx.core.content.ContextCompat.startForegroundService(
+                this,
+                Intent(this, ContextOrchestratorService::class.java)
+            )
+        }.onFailure { err ->
+            Log.e("MainActivity", "Failed to start ContextOrchestratorService", err)
+            onFailure?.invoke()
+        }
+    }
 
     private fun queryDownloadStatus(downloadId: Long): Pair<Int?, Int?> {
         if (downloadId <= 0L) return null to null
@@ -652,7 +673,7 @@ class MainActivity : AppCompatActivity() {
                         tvHealthChip.text = "Gateway status: reachable"
                         tvLineChip.text = "Connection state: ready"
                         tvChatChip.text = "Chat state: ready"
-                        OpenClawNodeService.start(this@MainActivity)
+                        startNodeServiceSafely()
                         refreshWakeMediaStatus()
                         refreshGatewayDebug()
                     }.onFailure { err ->
@@ -693,12 +714,29 @@ class MainActivity : AppCompatActivity() {
         refreshWakeMediaStatus()
         refreshWakeAlarmStatus()
         refreshInterventionStatus()
-        if (isConnectedState()) OpenClawNodeService.start(this)
+        if (isConnectedState()) {
+            startNodeServiceSafely {
+                getSharedPreferences("astra", MODE_PRIVATE).edit().putBoolean("gateway_connected", false).apply()
+                refreshSecondaryCards()
+                applyConnectionVisualState(
+                    title = "Connection paused after startup issue",
+                    details = "Astra disabled the saved connected state because node control failed to start during launch. You can reconnect from the main screen.",
+                    banner = "Startup recovered by disabling the saved live connection state.",
+                    bannerBackground = "#7C2D12",
+                    bannerText = "#FFEDD5"
+                )
+                refreshGatewayDebug("node service failed during app launch")
+            }
+        }
         if (isConnectedState() && InterventionRepository(this).getState().enabled) {
-            androidx.core.content.ContextCompat.startForegroundService(
-                this,
-                Intent(this, ContextOrchestratorService::class.java)
-            )
+            startContextEngineSafely {
+                val repo = InterventionRepository(this)
+                val state = repo.getState()
+                repo.saveState(state.copy(enabled = false))
+                cbInterventionsEnabled.isChecked = false
+                refreshInterventionStatus()
+                Toast.makeText(this, "Disabled interventions after a startup failure", Toast.LENGTH_LONG).show()
+            }
         }
         refreshUpdateVersionLine()
         refreshUpdateNotes()
@@ -936,10 +974,13 @@ class MainActivity : AppCompatActivity() {
             repo.saveState(state.copy(enabled = isChecked))
             refreshInterventionStatus()
             if (isChecked) {
-                androidx.core.content.ContextCompat.startForegroundService(
-                    this,
-                    Intent(this, ContextOrchestratorService::class.java)
-                )
+                startContextEngineSafely {
+                    val updatedState = repo.getState()
+                    repo.saveState(updatedState.copy(enabled = false))
+                    cbInterventionsEnabled.isChecked = false
+                    refreshInterventionStatus()
+                    Toast.makeText(this, "Couldn't start interventions right now", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
