@@ -48,13 +48,19 @@ enum class OpenClawDeviceSignatureVersion {
     V3
 }
 
+enum class OpenClawDeviceSignatureBinding {
+    TOKEN_BOUND,
+    TOKENLESS
+}
+
 data class OpenClawSignedDeviceAssertion(
     val deviceId: String,
     val publicKey: String,
     val signature: String,
     val signedAtMs: Long,
     val nonce: String,
-    val version: OpenClawDeviceSignatureVersion
+    val version: OpenClawDeviceSignatureVersion,
+    val binding: OpenClawDeviceSignatureBinding
 )
 
 object OpenClawGatewayCrypto {
@@ -102,12 +108,17 @@ object OpenClawGatewayCrypto {
         platform: String = "android",
         deviceFamily: String = Build.MODEL.orEmpty(),
         signatureToken: String? = null,
-        signatureVersion: OpenClawDeviceSignatureVersion = OpenClawDeviceSignatureVersion.V3
+        signatureVersion: OpenClawDeviceSignatureVersion = OpenClawDeviceSignatureVersion.V3,
+        signatureBinding: OpenClawDeviceSignatureBinding = OpenClawDeviceSignatureBinding.TOKEN_BOUND
     ): Result<OpenClawSignedDeviceAssertion> {
         if (nonce.isBlank()) return Result.failure(IllegalArgumentException("Missing connect nonce"))
 
         return ensureDeviceIdentity(context).mapCatching { identity ->
             val signedAtMs = System.currentTimeMillis()
+            val effectiveToken = when (signatureBinding) {
+                OpenClawDeviceSignatureBinding.TOKEN_BOUND -> signatureToken
+                OpenClawDeviceSignatureBinding.TOKENLESS -> null
+            }
             val payload = when (signatureVersion) {
                 OpenClawDeviceSignatureVersion.V2 -> buildDeviceAuthPayloadV2(
                     deviceId = identity.deviceId,
@@ -116,7 +127,7 @@ object OpenClawGatewayCrypto {
                     role = role,
                     scopes = scopes,
                     signedAtMs = signedAtMs,
-                    token = signatureToken,
+                    token = effectiveToken,
                     nonce = nonce
                 )
                 OpenClawDeviceSignatureVersion.V3 -> buildDeviceAuthPayloadV3(
@@ -126,7 +137,7 @@ object OpenClawGatewayCrypto {
                     role = role,
                     scopes = scopes,
                     signedAtMs = signedAtMs,
-                    token = signatureToken,
+                    token = effectiveToken,
                     nonce = nonce,
                     platform = platform,
                     deviceFamily = deviceFamily
@@ -139,7 +150,8 @@ object OpenClawGatewayCrypto {
                 signature = signature,
                 signedAtMs = signedAtMs,
                 nonce = nonce,
-                version = signatureVersion
+                version = signatureVersion,
+                binding = signatureBinding
             )
         }
     }

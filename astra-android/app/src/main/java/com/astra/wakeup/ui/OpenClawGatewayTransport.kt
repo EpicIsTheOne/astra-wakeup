@@ -52,6 +52,12 @@ data class GatewayHistoryResult(
     val error: String? = null
 )
 
+data class OpenClawDeviceSignatureStrategy(
+    val version: OpenClawDeviceSignatureVersion,
+    val binding: OpenClawDeviceSignatureBinding,
+    val label: String
+)
+
 class OpenClawGatewayTransport(
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
@@ -69,7 +75,7 @@ class OpenClawGatewayTransport(
         config: OpenClawGatewayConfig,
         timeoutMs: Long = 12_000,
         onHello: ((JSONObject) -> Unit)? = null
-    ): Result<OpenClawGatewaySession> = connectInternal(context, config, timeoutMs, onHello)
+    ): Result<OpenClawGatewaySession> = connectWithFallback(context, config, timeoutMs, onHello)
 
     fun sendChat(
         context: Context,
@@ -79,7 +85,24 @@ class OpenClawGatewayTransport(
         onHello: ((JSONObject) -> Unit)? = null
     ): GatewayChatResult {
         if (config.wsUrl.isBlank() || userText.isBlank()) return GatewayChatResult(error = "Missing Gateway URL or text")
+        val strategies = signatureStrategiesFor(config.resolvedAuth())
+        var lastResult = GatewayChatResult(error = "Gateway handshake aborted")
+        for ((index, strategy) in strategies.withIndex()) {
+            val result = sendChatAttempt(context, config, userText, timeoutMs, onHello, strategy)
+            lastResult = result
+            if (!shouldRetrySharedTokenSignature(config, result.error, index, strategies.size)) return result
+        }
+        return lastResult
+    }
 
+    private fun sendChatAttempt(
+        context: Context,
+        config: OpenClawGatewayConfig,
+        userText: String,
+        timeoutMs: Long,
+        onHello: ((JSONObject) -> Unit)?,
+        signatureStrategy: OpenClawDeviceSignatureStrategy?
+    ): GatewayChatResult {
         val resultRef = AtomicReference(GatewayChatResult())
         val replyBuffer = StringBuilder()
         val sendReqIdRef = AtomicReference<String?>(null)
@@ -92,7 +115,7 @@ class OpenClawGatewayTransport(
                 val json = runCatching { JSONObject(text) }.getOrNull() ?: return
                 when (json.optString("type")) {
                     "event" -> when (json.optString("event")) {
-                        "connect.challenge" -> sendConnectFrame(context, webSocket, config, json.optJSONObject("payload")) { error ->
+                        "connect.challenge" -> sendConnectFrame(context, webSocket, config, json.optJSONObject("payload"), signatureStrategy) { error ->
                             resultRef.set(resultRef.get().copy(error = error))
                             latch.countDown()
                         }
@@ -167,7 +190,23 @@ class OpenClawGatewayTransport(
         onHello: ((JSONObject) -> Unit)? = null
     ): GatewayHistoryResult {
         if (config.wsUrl.isBlank()) return GatewayHistoryResult(error = "Missing Gateway URL")
+        val strategies = signatureStrategiesFor(config.resolvedAuth())
+        var lastResult = GatewayHistoryResult(error = "Gateway handshake aborted")
+        for ((index, strategy) in strategies.withIndex()) {
+            val result = fetchHistoryAttempt(context, config, timeoutMs, onHello, strategy)
+            lastResult = result
+            if (!shouldRetrySharedTokenSignature(config, result.error, index, strategies.size)) return result
+        }
+        return lastResult
+    }
 
+    private fun fetchHistoryAttempt(
+        context: Context,
+        config: OpenClawGatewayConfig,
+        timeoutMs: Long,
+        onHello: ((JSONObject) -> Unit)?,
+        signatureStrategy: OpenClawDeviceSignatureStrategy?
+    ): GatewayHistoryResult {
         val resultRef = AtomicReference(GatewayHistoryResult())
         val historyReqIdRef = AtomicReference<String?>(null)
         val latch = CountDownLatch(1)
@@ -179,7 +218,7 @@ class OpenClawGatewayTransport(
                 val json = runCatching { JSONObject(text) }.getOrNull() ?: return
                 when (json.optString("type")) {
                     "event" -> if (json.optString("event") == "connect.challenge") {
-                        sendConnectFrame(context, webSocket, config, json.optJSONObject("payload")) { error ->
+                        sendConnectFrame(context, webSocket, config, json.optJSONObject("payload"), signatureStrategy) { error ->
                             resultRef.set(GatewayHistoryResult(error = error))
                             latch.countDown()
                         }
@@ -229,11 +268,29 @@ class OpenClawGatewayTransport(
         }
     }
 
+    private fun connectWithFallback(
+        context: Context,
+        config: OpenClawGatewayConfig,
+        timeoutMs: Long,
+        onHello: ((JSONObject) -> Unit)?
+    ): Result<OpenClawGatewaySession> {
+        val strategies = signatureStrategiesFor(config.resolvedAuth())
+        var lastResult: Result<OpenClawGatewaySession> = Result.failure(IllegalStateException("Gateway handshake aborted"))
+        for ((index, strategy) in strategies.withIndex()) {
+            val result = connectInternal(context, config, timeoutMs, onHello, strategy)
+            lastResult = result
+            val error = result.exceptionOrNull()?.message
+            if (!shouldRetrySharedTokenSignature(config, error, index, strategies.size)) return result
+        }
+        return lastResult
+    }
+
     private fun connectInternal(
         context: Context?,
         config: OpenClawGatewayConfig,
         timeoutMs: Long,
-        onHello: ((JSONObject) -> Unit)?
+        onHello: ((JSONObject) -> Unit)?,
+        signatureStrategy: OpenClawDeviceSignatureStrategy? = null
     ): Result<OpenClawGatewaySession> {
         if (config.wsUrl.isBlank()) return Result.failure(IllegalArgumentException("Missing Gateway URL"))
 
@@ -247,7 +304,7 @@ class OpenClawGatewayTransport(
                 val json = runCatching { JSONObject(text) }.getOrNull() ?: return
                 when (json.optString("type")) {
                     "event" -> if (json.optString("event") == "connect.challenge") {
-                        sendConnectFrame(context, webSocket, config, json.optJSONObject("payload")) { error ->
+                        sendConnectFrame(context, webSocket, config, json.optJSONObject("payload"), signatureStrategy) { error ->
                             resultRef.set(Result.failure(IllegalStateException(error)))
                             latch.countDown()
                         }
@@ -314,10 +371,11 @@ class OpenClawGatewayTransport(
         webSocket: WebSocket,
         config: OpenClawGatewayConfig,
         challengePayload: JSONObject?,
+        signatureStrategy: OpenClawDeviceSignatureStrategy? = null,
         onError: (String) -> Unit
     ) {
         val nonce = challengePayload?.optString("nonce").orEmpty()
-        val frame = buildConnectFrame(context, config, nonce).getOrElse { err ->
+        val frame = buildConnectFrame(context, config, nonce, signatureStrategy).getOrElse { err ->
             context?.let { appContext ->
                 OpenClawGatewayDiagnostics.recordHandshake(
                     context = appContext,
@@ -355,7 +413,12 @@ class OpenClawGatewayTransport(
         }
     }
 
-    private fun buildConnectFrame(context: Context?, config: OpenClawGatewayConfig, nonce: String): Result<JSONObject> {
+    private fun buildConnectFrame(
+        context: Context?,
+        config: OpenClawGatewayConfig,
+        nonce: String,
+        signatureStrategy: OpenClawDeviceSignatureStrategy? = null
+    ): Result<JSONObject> {
         return runCatching {
             val resolvedAuth = config.resolvedAuth()
             val params = JSONObject().apply {
@@ -380,7 +443,7 @@ class OpenClawGatewayTransport(
 
             resolvedAuth.payload?.let { params.put("auth", it) }
             context?.let {
-                buildDevicePayload(it, resolvedAuth, nonce)?.let { device -> params.put("device", device) }
+                buildDevicePayload(it, resolvedAuth, nonce, signatureStrategy)?.let { device -> params.put("device", device) }
             }
 
             JSONObject().apply {
@@ -392,13 +455,18 @@ class OpenClawGatewayTransport(
         }
     }
 
-    private fun buildDevicePayload(context: Context, resolvedAuth: GatewayResolvedAuth, nonce: String): JSONObject? {
-        val signatureToken = resolvedAuth.signatureToken
-        val signatureVersion = if (resolvedAuth.mode == GatewayAuthMode.SHARED_TOKEN) {
-            OpenClawDeviceSignatureVersion.V2
+    private fun buildDevicePayload(
+        context: Context,
+        resolvedAuth: GatewayResolvedAuth,
+        nonce: String,
+        signatureStrategy: OpenClawDeviceSignatureStrategy? = null
+    ): JSONObject? {
+        val defaultStrategy = if (resolvedAuth.mode == GatewayAuthMode.SHARED_TOKEN) {
+            OpenClawDeviceSignatureStrategy(OpenClawDeviceSignatureVersion.V2, OpenClawDeviceSignatureBinding.TOKEN_BOUND, "shared-v2-token")
         } else {
-            OpenClawDeviceSignatureVersion.V3
+            OpenClawDeviceSignatureStrategy(OpenClawDeviceSignatureVersion.V3, OpenClawDeviceSignatureBinding.TOKEN_BOUND, "default-v3-token")
         }
+        val strategy = signatureStrategy ?: defaultStrategy
         val signed = OpenClawGatewayCrypto.signConnectChallenge(
             context = context,
             clientId = ANDROID_GATEWAY_CLIENT_ID,
@@ -408,8 +476,9 @@ class OpenClawGatewayTransport(
             nonce = nonce,
             platform = "android",
             deviceFamily = Build.MODEL ?: "android",
-            signatureToken = signatureToken,
-            signatureVersion = signatureVersion
+            signatureToken = resolvedAuth.signatureToken,
+            signatureVersion = strategy.version,
+            signatureBinding = strategy.binding
         ).getOrElse { return null }
 
         return JSONObject().apply {
@@ -419,6 +488,28 @@ class OpenClawGatewayTransport(
             put("signedAt", signed.signedAtMs)
             put("nonce", signed.nonce)
         }
+    }
+
+    private fun signatureStrategiesFor(resolvedAuth: GatewayResolvedAuth): List<OpenClawDeviceSignatureStrategy?> {
+        if (resolvedAuth.mode != GatewayAuthMode.SHARED_TOKEN) return listOf(null)
+        return listOf(
+            OpenClawDeviceSignatureStrategy(OpenClawDeviceSignatureVersion.V2, OpenClawDeviceSignatureBinding.TOKEN_BOUND, "shared-v2-token"),
+            OpenClawDeviceSignatureStrategy(OpenClawDeviceSignatureVersion.V2, OpenClawDeviceSignatureBinding.TOKENLESS, "shared-v2-tokenless"),
+            OpenClawDeviceSignatureStrategy(OpenClawDeviceSignatureVersion.V3, OpenClawDeviceSignatureBinding.TOKEN_BOUND, "shared-v3-token"),
+            OpenClawDeviceSignatureStrategy(OpenClawDeviceSignatureVersion.V3, OpenClawDeviceSignatureBinding.TOKENLESS, "shared-v3-tokenless")
+        )
+    }
+
+    private fun shouldRetrySharedTokenSignature(
+        config: OpenClawGatewayConfig,
+        error: String?,
+        attemptIndex: Int,
+        totalAttempts: Int
+    ): Boolean {
+        if (config.resolvedAuth().mode != GatewayAuthMode.SHARED_TOKEN) return false
+        if (attemptIndex >= totalAttempts - 1) return false
+        val normalized = error?.lowercase().orEmpty()
+        return normalized.contains("device signature invalid")
     }
 
     private fun chatSendFrame(reqId: String, sessionKey: String, userText: String): JSONObject {
