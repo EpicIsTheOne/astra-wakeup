@@ -16,6 +16,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import android.view.View
@@ -53,6 +54,64 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun showStartupRecoveryUi(error: Throwable) {
+        Log.e("MainActivity", "Startup crashed; showing recovery UI", error)
+        val prefs = getSharedPreferences("astra", MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("gateway_connected", false)
+            .putBoolean("update_install_in_progress", false)
+            .apply()
+        runCatching { OpenClawNodeService.stop(this) }
+        runCatching { AstraOverlayController.stopOverlay(this) }
+        runCatching { stopService(Intent(this, ContextOrchestratorService::class.java)) }
+        runCatching { stopService(Intent(this, AstraOverlayService::class.java)) }
+
+        val repo = InterventionRepository(this)
+        runCatching {
+            val state = repo.getState()
+            if (state.enabled) repo.saveState(state.copy(enabled = false))
+        }
+
+        val message = buildString {
+            append("Astra hit a startup crash and switched into recovery mode.\n\n")
+            append("What I disabled automatically:\n")
+            append("• saved live connection state\n")
+            append("• interventions\n")
+            append("• overlay/background startup leftovers\n\n")
+            append("Crash summary:\n")
+            append((error.message ?: error::class.java.simpleName).take(400))
+        }
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 48, 32, 32)
+            setBackgroundColor(android.graphics.Color.parseColor("#0B1020"))
+            addView(TextView(context).apply {
+                text = "Astra recovery mode"
+                setTextColor(android.graphics.Color.WHITE)
+                textSize = 22f
+            })
+            addView(TextView(context).apply {
+                text = message
+                setTextColor(android.graphics.Color.parseColor("#E5E7EB"))
+                textSize = 15f
+                setPadding(0, 24, 0, 24)
+            })
+            addView(Button(context).apply {
+                text = "Retry normal launch"
+                setOnClickListener {
+                    val intent = packageManager.getLaunchIntentForPackage(packageName)
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                    }
+                    finish()
+                }
+            })
+        }
+        setContentView(ScrollView(this).apply { addView(content) })
+    }
+
     private fun queryDownloadStatus(downloadId: Long): Pair<Int?, Int?> {
         if (downloadId <= 0L) return null to null
         val manager = getSystemService(DownloadManager::class.java)
@@ -69,9 +128,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        try {
+            setContentView(R.layout.activity_main)
 
-        val prefs = getSharedPreferences("astra", MODE_PRIVATE)
+            val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         val etApiUrl = findViewById<EditText>(R.id.etApiUrl)
         val etGatewayToken = findViewById<EditText>(R.id.etGatewayToken)
         val etBootstrapToken = findViewById<EditText>(R.id.etBootstrapToken)
@@ -1024,6 +1084,9 @@ class MainActivity : AppCompatActivity() {
                 tvUpdateHint.text = "Astra will ignore ${asset.tagName} until a newer release shows up or you manually download it."
                 Toast.makeText(this, "Skipped ${asset.tagName}", Toast.LENGTH_SHORT).show()
             }
+        }
+        } catch (t: Throwable) {
+            showStartupRecoveryUi(t)
         }
     }
 
