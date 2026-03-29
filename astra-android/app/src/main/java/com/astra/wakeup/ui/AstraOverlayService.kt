@@ -28,6 +28,7 @@ class AstraOverlayService : Service() {
     private var panelView: View? = null
     private var panelParams: WindowManager.LayoutParams? = null
     private var panelController: AstraOverlayPanelController? = null
+    private var lastOutsideTapAtMs: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -36,6 +37,10 @@ class AstraOverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!AstraOverlayController.isOverlayEnabled(this) && intent?.action != ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         when (intent?.action) {
             ACTION_STOP -> {
                 stopSelf()
@@ -101,7 +106,7 @@ class AstraOverlayService : Service() {
     }
 
     private fun showOrbIfNeeded() {
-        if (orbView != null || !AstraOverlayController.canDrawOverlays(this)) return
+        if (orbView != null || !AstraOverlayController.isOverlayEnabled(this) || !AstraOverlayController.canDrawOverlays(this)) return
         val orb = FrameLayout(this).apply {
             setBackgroundResource(R.drawable.bg_astra_orb)
             elevation = 18f
@@ -163,9 +168,18 @@ class AstraOverlayService : Service() {
     }
 
     private fun showPanelIfNeeded() {
-        if (panelView != null || !AstraOverlayController.canDrawOverlays(this)) return
+        if (panelView != null || !AstraOverlayController.isOverlayEnabled(this) || !AstraOverlayController.canDrawOverlays(this)) return
         removeOrb()
+        lastOutsideTapAtMs = 0L
         val panel = LayoutInflater.from(this).inflate(R.layout.activity_astra_overlay, null)
+        panel.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                handleOutsideTap()
+                true
+            } else {
+                false
+            }
+        }
         panelController = AstraOverlayPanelController(
             context = this,
             root = panel,
@@ -181,7 +195,7 @@ class AstraOverlayService : Service() {
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
@@ -196,6 +210,16 @@ class AstraOverlayService : Service() {
     private fun collapseToOrb() {
         removePanel()
         showOrbIfNeeded()
+    }
+
+    private fun handleOutsideTap() {
+        val now = System.currentTimeMillis()
+        if (now - lastOutsideTapAtMs <= OUTSIDE_DOUBLE_TAP_WINDOW_MS) {
+            lastOutsideTapAtMs = 0L
+            collapseToOrb()
+        } else {
+            lastOutsideTapAtMs = now
+        }
     }
 
     private fun removePanel() {

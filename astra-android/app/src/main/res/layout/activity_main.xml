@@ -498,6 +498,14 @@
                 android:text="Open Astra Panel"
                 android:textColor="#FFFFFF" />
 
+            <CheckBox
+                android:id="@+id/cbOverlayEnabled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Enable Astra everywhere overlay + orb"
+                android:textColor="#E2E8F0" />
+
             <Button
                 android:id="@+id/btnOpenReminders"
                 android:layout_width="match_parent"

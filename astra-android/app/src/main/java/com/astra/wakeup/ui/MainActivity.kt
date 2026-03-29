@@ -164,6 +164,7 @@ class MainActivity : AppCompatActivity() {
         val etMediaCenterBaseUrl = findViewById<EditText>(R.id.etMediaCenterBaseUrl)
         val cbPunish = findViewById<CheckBox>(R.id.cbPunish)
         val cbInterventionsEnabled = findViewById<CheckBox>(R.id.cbInterventionsEnabled)
+        val cbOverlayEnabled = findViewById<CheckBox>(R.id.cbOverlayEnabled)
         val layoutGatewayAdvanced = findViewById<LinearLayout>(R.id.layoutGatewayAdvanced)
         val layoutGatewayDebug = findViewById<LinearLayout>(R.id.layoutGatewayDebug)
         val layoutWakeCard = findViewById<LinearLayout>(R.id.layoutWakeCard)
@@ -232,6 +233,7 @@ class MainActivity : AppCompatActivity() {
 
         cbPunish.isChecked = prefs.getBoolean("punish", true)
         cbInterventionsEnabled.isChecked = InterventionRepository(this).getState().enabled
+        cbOverlayEnabled.isChecked = AstraOverlayController.isOverlayEnabled(this)
         cbAutoUpdate.isChecked = prefs.getBoolean("updater_auto_check", true)
         val skippedUpdateTagKey = "updater_skip_tag"
 
@@ -591,6 +593,7 @@ class MainActivity : AppCompatActivity() {
 
         fun refreshSecondaryCards() {
             val connected = isConnectedState()
+            val overlayEnabled = AstraOverlayController.isOverlayEnabled(this@MainActivity)
             val wakeAlpha = if (connected) 1.0f else 0.62f
             val chatAlpha = if (connected) 1.0f else 0.62f
             val interventionAlpha = if (connected) 1.0f else 0.62f
@@ -600,6 +603,7 @@ class MainActivity : AppCompatActivity() {
 
             cbPunish.isEnabled = connected
             cbInterventionsEnabled.isEnabled = connected
+            cbOverlayEnabled.isEnabled = true
             btnPickWakeTime.isEnabled = connected
             seekVoiceVolume.isEnabled = connected
             seekMusicVolume.isEnabled = connected
@@ -611,19 +615,25 @@ class MainActivity : AppCompatActivity() {
             btnTestFullScreenAlarm.isEnabled = connected
             btnNotificationSettings.isEnabled = connected
             btnOpenChat.isEnabled = connected
-            btnOpenAstraPanel.isEnabled = true
+            btnOpenAstraPanel.isEnabled = overlayEnabled
             btnOpenReminders.isEnabled = connected
             btnUsageAccess.isEnabled = connected
             btnInterventionSettings.isEnabled = connected
             btnOpenChat.text = if (connected) "Open Chat" else "Open Chat (connect first)"
-            btnOpenAstraPanel.text = if (AstraOverlayController.canDrawOverlays(this@MainActivity)) "Enable Astra Everywhere (overlay beta)" else "Open Astra Panel / Enable Overlay"
+            btnOpenAstraPanel.text = when {
+                !overlayEnabled -> "Astra Everywhere disabled in settings"
+                AstraOverlayController.canDrawOverlays(this@MainActivity) -> "Enable Astra Everywhere (overlay beta)"
+                else -> "Open Astra Panel / Enable Overlay"
+            }
             btnOpenReminders.text = if (connected) "Open Reminders + Task Board" else "Open Reminders + Task Board (connect first)"
             tvWakeHint.text = if (connected) {
                 "Pick any wake time you want. Astra will keep trying to wake you up until you tap I'm awake, Talk back only listens when you press it, and wake-ready Media Center assets can be used for audio choices."
             } else {
                 "Connect this phone to enable wake controls."
             }
-            tvChatHint.text = if (connected) {
+            tvChatHint.text = if (!overlayEnabled) {
+                "Overlay + orb are disabled in settings. Turn them back on anytime if you want Astra everywhere."
+            } else if (connected) {
                 "Open chat, or launch the new Astra panel for a Gemini-style bottom sheet with auto-listen and TTS replies."
             } else {
                 "Connect this phone first, then open your Astra chat."
@@ -1058,6 +1068,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnOpenAstraPanel.setOnClickListener {
+            if (!AstraOverlayController.isOverlayEnabled(this)) {
+                Toast.makeText(this, "Astra everywhere overlay is disabled in settings", Toast.LENGTH_SHORT).show()
+                refreshSecondaryCards()
+                return@setOnClickListener
+            }
             if (AstraOverlayController.canDrawOverlays(this)) {
                 AstraOverlayController.startOverlay(this)
                 Toast.makeText(this, "Astra overlay beta enabled", Toast.LENGTH_SHORT).show()
@@ -1099,6 +1114,16 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, "Couldn't start interventions right now", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+
+        cbOverlayEnabled.setOnCheckedChangeListener { _, isChecked ->
+            AstraOverlayController.setOverlayEnabled(this, isChecked)
+            if (isChecked) {
+                Toast.makeText(this, "Astra everywhere overlay enabled", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Astra everywhere overlay disabled", Toast.LENGTH_SHORT).show()
+            }
+            refreshSecondaryCards()
         }
 
         btnUsageAccess.setOnClickListener {
