@@ -15,9 +15,11 @@ class AstraLiveCallSocket(
 ) {
     private val client = OkHttpClient.Builder().retryOnConnectionFailure(true).build()
     private var socket: WebSocket? = null
+    @Volatile private var intentionallyClosed = false
     private val url = AstraCallSessionClient.websocketUrl(apiUrl)
 
     fun connect() {
+        intentionallyClosed = false
         socket = client.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) = Unit
 
@@ -33,12 +35,21 @@ class AstraLiveCallSocket(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                onFailure(t.message ?: "call socket failed")
+                if (!intentionallyClosed) {
+                    onFailure(t.message ?: "call socket failed")
+                }
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (!intentionallyClosed) {
+                    onFailure("call socket closed ($code)${if (reason.isBlank()) "" else ": $reason"}")
+                }
             }
         })
     }
 
     fun close() {
+        intentionallyClosed = true
         socket?.close(1000, null)
         socket = null
     }

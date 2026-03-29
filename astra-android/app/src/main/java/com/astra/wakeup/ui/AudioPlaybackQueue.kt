@@ -14,12 +14,16 @@ data class AudioChunk(
 class AudioPlaybackQueue(
     private val defaultSampleRateHz: Int = 24_000,
     private val onError: (String) -> Unit,
+    private val onPlaybackStateChanged: ((Boolean) -> Unit)? = null,
+    private val onPlaybackIdle: (() -> Unit)? = null,
 ) {
     private val queue = LinkedBlockingQueue<AudioChunk>()
     @Volatile private var running = false
     private var worker: Thread? = null
     private var audioTrack: AudioTrack? = null
     @Volatile private var activeSampleRateHz: Int = defaultSampleRateHz
+    @Volatile private var playbackActive = false
+    @Volatile private var idleSignalToken = 0L
 
     fun start() {
         if (running) return
@@ -30,12 +34,15 @@ class AudioPlaybackQueue(
                 audioTrack?.play()
                 while (running) {
                     val chunk = queue.take()
+                    if (!running) break
                     if (chunk.sampleRateHz != activeSampleRateHz) {
                         ensureAudioTrack(chunk.sampleRateHz)
                         audioTrack?.play()
                     }
                     if (chunk.bytes.isNotEmpty()) {
+                        setPlaybackActive(true)
                         audioTrack?.write(chunk.bytes, 0, chunk.bytes.size)
+                        scheduleIdleSignal(chunk)
                     }
                 }
             } catch (e: Throwable) {
@@ -56,11 +63,22 @@ class AudioPlaybackQueue(
         queue.offer(AudioChunk(decoded, sampleRate))
     }
 
+    fun interruptPlayback() {
+        idleSignalToken += 1
+        queue.clear()
+        runCatching { audioTrack?.pause() }
+        runCatching { audioTrack?.flush() }
+        runCatching { audioTrack?.play() }
+        setPlaybackActive(false)
+    }
+
     fun stop() {
         running = false
+        idleSignalToken += 1
         worker?.interrupt()
         worker = null
         queue.clear()
+        setPlaybackActive(false)
         releaseTrack()
     }
 
@@ -89,16 +107,46 @@ class AudioPlaybackQueue(
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build()
             )
-            .setBufferSizeInBytes(minBuffer * 2)
+            .setBufferSizeInBytes((minBuffer * 3).coerceAtLeast(sampleRateHz / 2))
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
         activeSampleRateHz = sampleRateHz
     }
 
     private fun releaseTrack() {
+        runCatching { audioTrack?.pause() }
+        runCatching { audioTrack?.flush() }
         runCatching { audioTrack?.stop() }
         runCatching { audioTrack?.release() }
         audioTrack = null
+    }
+
+    private fun scheduleIdleSignal(chunk: AudioChunk) {
+        val token = idleSignalToken + 1
+        idleSignalToken = token
+        val durationMs = ((chunk.bytes.size / 2.0) / chunk.sampleRateHz.toDouble() * 1000.0).toLong().coerceAtLeast(80L)
+        Thread {
+            try {
+                Thread.sleep((durationMs + 120L).coerceAtMost(1500L))
+            } catch (_: InterruptedException) {
+                return@Thread
+            }
+            if (!running) return@Thread
+            if (token != idleSignalToken) return@Thread
+            if (queue.isNotEmpty()) return@Thread
+            setPlaybackActive(false)
+            onPlaybackIdle?.invoke()
+        }.apply {
+            name = "astra-audio-idle"
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun setPlaybackActive(active: Boolean) {
+        if (playbackActive == active) return
+        playbackActive = active
+        onPlaybackStateChanged?.invoke(active)
     }
 
     private fun parseSampleRateFromMimeType(mimeType: String?): Int? {

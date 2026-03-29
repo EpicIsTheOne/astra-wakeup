@@ -56,6 +56,18 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var uplinkChunkDebugCount = 0
     private var debugMessagesEnabled = true
     private var typingDots = 0
+    private var assistantPlaybackActive = false
+    private var micGateUntilMs = 0L
+    private var reconnectNoticeShown = false
+    private val voiceFallbackRunnable = Runnable {
+        val fallback = pendingVoiceFallbackText
+        if (!callMode || fallback.isNullOrBlank() || receivedAudioForCurrentTurn) return@Runnable
+        appendDebugMessage("No Gemini audio returned; using TTS fallback.")
+        markAssistantPlaybackActive(true)
+        speak(fallback)
+        pendingResumeAfterTts = true
+        pendingVoiceFallbackText = null
+    }
     private val typingTicker = object : Runnable {
         override fun run() {
             if (layoutTyping.visibility != android.view.View.VISIBLE) return
@@ -146,6 +158,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             current.copy(active = true, sessionId = started.session.id, phase = "connecting")
                         }
                         reconnectAttempts = 0
+                        reconnectNoticeShown = false
                         connectLiveCallSocket(gatewayConfig.httpBaseUrl, started.session.id)
                         btnCall.text = "End Call"
                         setCallStatus("live 🎙️")
@@ -160,10 +173,13 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         audioRecordStreamer?.stop()
                         audioPlaybackQueue?.stop()
                         audioPlaybackQueue = AudioPlaybackQueue(
-                            onError = { error -> runOnUiThread { appendMessage("Astra", "Playback issue: $error", isAstra = true) } }
+                            onError = { error -> runOnUiThread { appendMessage("Astra", "Playback issue: $error", isAstra = true) } },
+                            onPlaybackStateChanged = { active -> runOnUiThread { markAssistantPlaybackActive(active) } },
+                            onPlaybackIdle = { runOnUiThread { notifyAssistantPlaybackFinished("pcm-drain") } },
                         ).also { it.start() }
                         uplinkChunkDebugCount = 0
                         audioRecordStreamer = AudioRecordStreamer(
+                            shouldStreamChunk = { pcm16 -> shouldUploadMicChunk(pcm16) },
                             onChunk = { chunk ->
                                 val sessionId = activeCallSessionId
                                 if (sessionId.isNullOrBlank()) {
@@ -198,6 +214,10 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 audioPlaybackQueue = null
                 pendingVoiceFallbackText = null
                 receivedAudioForCurrentTurn = false
+                handler.removeCallbacks(voiceFallbackRunnable)
+                assistantPlaybackActive = false
+                micGateUntilMs = 0L
+                reconnectNoticeShown = false
                 setCallStatus("idle")
                 recognizer?.cancel()
                 stopTyping()
@@ -215,7 +235,9 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             tts?.setPitch(1.1f)
             tts?.setSpeechRate(1.0f)
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
+                override fun onStart(utteranceId: String?) {
+                    markAssistantPlaybackActive(true)
+                }
                 override fun onError(utteranceId: String?) {
                     maybeResumeListeningAfterTts()
                 }
@@ -313,22 +335,29 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun speak(text: String) {
         if (!ttsReady) return
+        markAssistantPlaybackActive(true)
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "chat-turn")
     }
 
     private fun maybeResumeListeningAfterTts() {
         runOnUiThread {
-            if (!callMode || !pendingResumeAfterTts) return@runOnUiThread
-            pendingResumeAfterTts = false
-            activeCallSessionId?.let {
-                AstraCallSessionClient.sendSessionEvent(
-                    OpenClawGatewayConfig.fromContext(this).httpBaseUrl,
-                    it,
-                    "assistant.playback_finished"
-                )
-            }
-            setCallStatus("live 🎙️")
+            notifyAssistantPlaybackFinished("tts")
         }
+    }
+
+    private fun notifyAssistantPlaybackFinished(source: String) {
+        markAssistantPlaybackActive(false)
+        if (!callMode || !pendingResumeAfterTts) return
+        pendingResumeAfterTts = false
+        appendDebugMessage("Assistant playback finished via $source.")
+        activeCallSessionId?.let {
+            AstraCallSessionClient.sendSessionEvent(
+                OpenClawGatewayConfig.fromContext(this).httpBaseUrl,
+                it,
+                "assistant.playback_finished"
+            )
+        }
+        setCallStatus("live 🎙️")
     }
 
     private fun startSpeechInput(singleShot: Boolean) {
@@ -406,14 +435,54 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun scheduleVoiceFallbackIfNeeded(text: String) {
         pendingVoiceFallbackText = text
         receivedAudioForCurrentTurn = false
-        handler.postDelayed({
-            val fallback = pendingVoiceFallbackText
-            if (!callMode || fallback.isNullOrBlank() || receivedAudioForCurrentTurn) return@postDelayed
-            appendDebugMessage("No Gemini audio returned; using TTS fallback.")
-            speak(fallback)
-            pendingResumeAfterTts = true
-            pendingVoiceFallbackText = null
-        }, 1500)
+        handler.removeCallbacks(voiceFallbackRunnable)
+        handler.postDelayed(voiceFallbackRunnable, 2500L)
+    }
+
+    private fun markAssistantPlaybackActive(active: Boolean) {
+        assistantPlaybackActive = active
+        if (active) {
+            micGateUntilMs = System.currentTimeMillis() + 900L
+            if (callMode) setCallStatus("speaking…")
+        } else {
+            micGateUntilMs = System.currentTimeMillis() + 250L
+        }
+    }
+
+    private fun shouldUploadMicChunk(pcm16: ByteArray): Boolean {
+        if (!callMode) return false
+        if (!assistantPlaybackActive && System.currentTimeMillis() >= micGateUntilMs) return true
+        val rms = estimatePcm16Rms(pcm16)
+        val allowBargeIn = rms >= 2500
+        if (allowBargeIn) {
+            handler.post {
+                appendDebugMessage("Strong user speech detected while Astra was talking; allowing barge-in.")
+                pendingVoiceFallbackText = null
+                pendingResumeAfterTts = false
+                handler.removeCallbacks(voiceFallbackRunnable)
+                tts?.stop()
+                audioPlaybackQueue?.interruptPlayback()
+                markAssistantPlaybackActive(false)
+                setCallStatus("listening…")
+            }
+            return true
+        }
+        return false
+    }
+
+    private fun estimatePcm16Rms(pcm16: ByteArray): Int {
+        if (pcm16.size < 2) return 0
+        var sum = 0.0
+        var count = 0
+        var i = 0
+        while (i + 1 < pcm16.size) {
+            val sample = ((pcm16[i + 1].toInt() shl 8) or (pcm16[i].toInt() and 0xFF)).toShort().toInt()
+            sum += sample * sample.toDouble()
+            count += 1
+            i += 2
+        }
+        if (count == 0) return 0
+        return kotlin.math.sqrt(sum / count).toInt()
     }
 
     private fun connectLiveCallSocket(apiUrl: String, sessionId: String) {
@@ -423,6 +492,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             sessionId = sessionId,
             onEvent = { type, data ->
                 reconnectAttempts = 0
+                reconnectNoticeShown = false
                 handleLiveCallEvent(type, data)
             },
             onFailure = { error -> runOnUiThread { scheduleLiveSocketReconnect(apiUrl, sessionId, error) } }
@@ -435,11 +505,16 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (reconnectAttempts > maxReconnectAttempts) {
             setCallStatus("reconnect failed")
             appendMessage("Astra", "Live call connection dropped and couldn't recover. End and restart the call.", isAstra = true)
+            appendDebugMessage("Reconnect failed after $maxReconnectAttempts tries: $reason")
             return
         }
-        val delayMs = (500L * reconnectAttempts).coerceAtMost(3000L)
+        val delayMs = (600L * reconnectAttempts).coerceAtMost(4000L)
         setCallStatus("reconnecting…")
-        appendMessage("Astra", "Call link hiccup ($reason). Reconnecting…", isAstra = true)
+        if (!reconnectNoticeShown) {
+            reconnectNoticeShown = true
+            appendMessage("Astra", "Call link hiccup. Reconnecting before you can complain.", isAstra = true)
+        }
+        appendDebugMessage("Socket reconnect #$reconnectAttempts in ${delayMs}ms: $reason")
         handler.postDelayed({
             if (!callMode || activeCallSessionId != sessionId) return@postDelayed
             connectLiveCallSocket(apiUrl, sessionId)
@@ -451,11 +526,17 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             when (type) {
                 "call:session.started" -> setCallStatus("ready")
                 "call:session.state" -> setCallStatus(data.optString("state").ifBlank { "live" })
-                "call:transcript.partial" -> setCallStatus("listening…")
+                "call:transcript.partial" -> {
+                    pendingVoiceFallbackText = null
+                    handler.removeCallbacks(voiceFallbackRunnable)
+                    setCallStatus("listening…")
+                }
                 "call:transcript.final" -> setCallStatus("thinking…")
                 "call:response.text" -> {
                     val text = data.optString("text").trim()
                     if (text.isNotBlank()) {
+                        handler.removeCallbacks(voiceFallbackRunnable)
+                        pendingVoiceFallbackText = null
                         appendMessage("Astra", text, isAstra = true)
                         CallStateRepository.update { current -> current.copy(lastAssistantText = text) }
                         setCallStatus("speaking…")
@@ -463,6 +544,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             speak(text)
                             if (callMode) pendingResumeAfterTts = true
                         } else {
+                            pendingResumeAfterTts = true
                             scheduleVoiceFallbackIfNeeded(text)
                         }
                     }
@@ -473,6 +555,9 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     if (chunk.isNotBlank()) {
                         receivedAudioForCurrentTurn = true
                         pendingVoiceFallbackText = null
+                        handler.removeCallbacks(voiceFallbackRunnable)
+                        pendingResumeAfterTts = true
+                        markAssistantPlaybackActive(true)
                         setCallStatus("speaking…")
                         audioPlaybackQueue?.enqueuePcm16Base64(chunk, mimeType)
                     }
@@ -482,6 +567,14 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     if (message.isNotBlank()) {
                         appendDebugMessage(message)
                     }
+                }
+                "call:error" -> {
+                    val message = data.optString("message").trim().ifBlank { "Unknown live call error" }
+                    pendingVoiceFallbackText = null
+                    handler.removeCallbacks(voiceFallbackRunnable)
+                    setCallStatus("call issue")
+                    appendMessage("Astra", "Live call issue: $message", isAstra = true)
+                    appendDebugMessage("Call error for session ${data.optString("sessionId")}: $message")
                 }
                 "call:session.ended" -> {
                     callMode = false
@@ -494,6 +587,10 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     audioPlaybackQueue = null
                     pendingVoiceFallbackText = null
                     receivedAudioForCurrentTurn = false
+                    handler.removeCallbacks(voiceFallbackRunnable)
+                    assistantPlaybackActive = false
+                    micGateUntilMs = 0L
+                    reconnectNoticeShown = false
                     setCallStatus("ended")
                     CallStateRepository.set(CallState())
                 }
@@ -517,6 +614,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onDestroy() {
         callMode = false
         stopTyping()
+        handler.removeCallbacks(voiceFallbackRunnable)
         liveCallSocket?.close()
         audioRecordStreamer?.stop()
         audioPlaybackQueue?.stop()

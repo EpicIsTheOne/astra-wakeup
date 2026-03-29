@@ -7,6 +7,7 @@ import android.util.Base64
 
 class AudioRecordStreamer(
     private val sampleRateHz: Int = 16_000,
+    private val shouldStreamChunk: ((pcm16: ByteArray) -> Boolean)? = null,
     private val onChunk: (pcm16Base64: String) -> Unit,
     private val onError: (String) -> Unit,
     private val onDebug: (String) -> Unit = {},
@@ -50,7 +51,15 @@ class AudioRecordStreamer(
                         if (readCount <= 3 || readCount % 25 == 0) {
                             onDebug("AudioRecord read #$readCount bytes=$read")
                         }
-                        val b64 = Base64.encodeToString(buffer.copyOf(read), Base64.NO_WRAP)
+                        val pcm16 = buffer.copyOf(read)
+                        val shouldStream = shouldStreamChunk?.invoke(pcm16) ?: true
+                        if (!shouldStream) {
+                            if (readCount <= 3 || readCount % 25 == 0) {
+                                onDebug("AudioRecord gated local chunk #$readCount bytes=$read")
+                            }
+                            continue
+                        }
+                        val b64 = Base64.encodeToString(pcm16, Base64.NO_WRAP)
                         onChunk(b64)
                     } else if (read < 0) {
                         onDebug("AudioRecord read error code=$read")
