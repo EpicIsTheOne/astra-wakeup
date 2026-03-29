@@ -156,17 +156,21 @@ class OpenClawNodeService : Service() {
         val nonce = payload?.optString("nonce").orEmpty()
         val config = OpenClawGatewayConfig.fromContext(this)
         val resolvedAuth = config.resolvedAuth()
-        val signed = OpenClawGatewayCrypto.signConnectChallenge(
-            context = this,
-            clientId = NODE_CLIENT_ID,
-            clientMode = "node",
-            role = "node",
-            scopes = emptyList(),
-            nonce = nonce,
-            platform = "android",
-            deviceFamily = Build.MODEL ?: "android",
-            signatureToken = resolvedAuth.signatureToken
-        ).getOrNull()
+        val signed = if (resolvedAuth.mode == GatewayAuthMode.SHARED_TOKEN) {
+            null
+        } else {
+            OpenClawGatewayCrypto.signConnectChallenge(
+                context = this,
+                clientId = NODE_CLIENT_ID,
+                clientMode = "node",
+                role = "node",
+                scopes = emptyList(),
+                nonce = nonce,
+                platform = "android",
+                deviceFamily = Build.MODEL ?: "android",
+                signatureToken = resolvedAuth.signatureToken
+            ).getOrNull()
+        }
 
         val params = JSONObject().apply {
             put("minProtocol", 3)

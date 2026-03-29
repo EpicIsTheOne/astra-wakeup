@@ -368,8 +368,10 @@ class OpenClawGatewayTransport(
             }
 
             resolvedAuth.payload?.let { params.put("auth", it) }
-            context?.let {
-                buildDevicePayload(it, resolvedAuth, nonce)?.let { device -> params.put("device", device) }
+            if (resolvedAuth.mode != GatewayAuthMode.SHARED_TOKEN) {
+                context?.let {
+                    buildDevicePayload(it, resolvedAuth, nonce)?.let { device -> params.put("device", device) }
+                }
             }
 
             JSONObject().apply {
