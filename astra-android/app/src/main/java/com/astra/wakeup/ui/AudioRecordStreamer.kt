@@ -3,6 +3,9 @@ package com.astra.wakeup.ui
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import android.util.Base64
 
 class AudioRecordStreamer(
@@ -30,13 +33,30 @@ class AudioRecordStreamer(
         }
         onDebug("AudioRecord minBuffer=$minBuffer sampleRate=$sampleRateHz")
         val audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
             sampleRateHz,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
             minBuffer * 2,
         )
         recorder = audioRecord
+        val sessionId = audioRecord.audioSessionId
+        val aec = runCatching {
+            if (AcousticEchoCanceler.isAvailable()) {
+                AcousticEchoCanceler.create(sessionId)?.apply { enabled = true }
+            } else null
+        }.getOrNull()
+        val ns = runCatching {
+            if (NoiseSuppressor.isAvailable()) {
+                NoiseSuppressor.create(sessionId)?.apply { enabled = true }
+            } else null
+        }.getOrNull()
+        val agc = runCatching {
+            if (AutomaticGainControl.isAvailable()) {
+                AutomaticGainControl.create(sessionId)?.apply { enabled = true }
+            } else null
+        }.getOrNull()
+        onDebug("AudioRecord effects aec=${aec != null} ns=${ns != null} agc=${agc != null}")
         running = true
         thread = Thread {
             var readCount = 0
@@ -68,6 +88,9 @@ class AudioRecordStreamer(
             } catch (e: Throwable) {
                 onError(e.message ?: "Audio stream failed")
             } finally {
+                runCatching { aec?.release() }
+                runCatching { ns?.release() }
+                runCatching { agc?.release() }
                 runCatching { audioRecord.stop() }
                 runCatching { audioRecord.release() }
             }
