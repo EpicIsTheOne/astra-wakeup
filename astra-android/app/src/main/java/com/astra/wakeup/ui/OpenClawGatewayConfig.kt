@@ -82,13 +82,6 @@ object OpenClawGatewayAuthStore {
             }
             .onFailure {
                 prefs.edit()
-                    .remove("gateway_device_public_key_pem")
-                    .remove("gateway_device_private_key_pem")
-                    .remove("gateway_device_identity_created_at")
-                    .remove("gateway_device_key_algorithm")
-                    .remove("gateway_device_identity_version")
-                    .remove("gateway_device_token")
-                    .remove("gateway_device_token_issued_at")
                     .putString("gateway_device_id", "android-${UUID.randomUUID()}")
                     .apply()
 

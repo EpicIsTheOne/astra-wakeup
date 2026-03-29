@@ -33,8 +33,6 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private fun currentVersionName(): String = packageManager.getPackageInfo(packageName, 0).versionName ?: "0.0.0"
-    private val pairedLaunchSafeMode: Boolean = true
-
     private fun startNodeServiceSafely(onFailure: (() -> Unit)? = null) {
         runCatching { OpenClawNodeService.start(this) }
             .onFailure { err ->
@@ -53,21 +51,6 @@ class MainActivity : AppCompatActivity() {
             Log.e("MainActivity", "Failed to start ContextOrchestratorService", err)
             onFailure?.invoke()
         }
-    }
-
-    private fun quarantinePairedStartupState() {
-        val prefs = getSharedPreferences("astra", MODE_PRIVATE)
-        prefs.edit()
-            .putBoolean("gateway_connected", false)
-            .remove("gateway_device_public_key_pem")
-            .remove("gateway_device_private_key_pem")
-            .remove("gateway_device_identity_created_at")
-            .remove("gateway_device_key_algorithm")
-            .remove("gateway_device_identity_version")
-            .putString("gateway_device_id", "android-quarantine")
-            .apply()
-        runCatching { OpenClawNodeService.stop(this) }
-        runCatching { stopService(Intent(this, ContextOrchestratorService::class.java)) }
     }
 
     private fun showStartupRecoveryUi(error: Throwable) {
@@ -146,10 +129,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         try {
             setContentView(R.layout.activity_main)
-
-            if (pairedLaunchSafeMode) {
-                quarantinePairedStartupState()
-            }
 
             val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         val etApiUrl = findViewById<EditText>(R.id.etApiUrl)

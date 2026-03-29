@@ -131,6 +131,29 @@ object OpenClawGatewayCrypto {
             .apply()
     }
 
+    private fun clearPersistedIdentity(prefs: android.content.SharedPreferences) {
+        prefs.edit()
+            .remove("gateway_device_public_key_pem")
+            .remove("gateway_device_private_key_pem")
+            .remove("gateway_device_identity_created_at")
+            .remove("gateway_device_key_algorithm")
+            .remove("gateway_device_identity_version")
+            .apply()
+    }
+
+    private fun validateIdentity(identity: OpenClawDeviceIdentity) {
+        require(identity.algorithm == "Ed25519") { "Unsupported device identity algorithm" }
+        val publicKey = parsePublicKey(identity.publicKeyPem)
+        val privateKey = parsePrivateKey(identity.privateKeyPem)
+        require(publicKey.algorithm == "Ed25519") { "Invalid stored public key" }
+        require(privateKey.algorithm == "Ed25519") { "Invalid stored private key" }
+        val derivedDeviceId = fingerprintPublicKey(identity.publicKeyPem)
+        require(identity.deviceId == derivedDeviceId) { "Stored device identity fingerprint mismatch" }
+        val probePayload = "astra-device-identity-probe"
+        val signature = signEd25519(identity.privateKeyPem, probePayload)
+        require(signature.isNotBlank()) { "Stored device identity signing probe failed" }
+    }
+
     private fun generateEd25519Identity(): OpenClawDeviceIdentity {
         val generator = KeyPairGenerator.getInstance("Ed25519")
         val pair = generator.generateKeyPair()
