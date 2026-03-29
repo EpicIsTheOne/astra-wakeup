@@ -242,7 +242,7 @@ object OpenClawGatewayCrypto {
     }
 
     fun identityDebugJson(context: Context): JSONObject {
-        val identity = currentDeviceIdentity(context)
+        val identity = runCatching { currentDeviceIdentity(context) }.getOrNull()
         return JSONObject().apply {
             put("present", identity != null)
             put("deviceId", identity?.deviceId)

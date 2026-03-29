@@ -444,32 +444,45 @@ class MainActivity : AppCompatActivity() {
         }
 
         fun refreshGatewayDebug(lastError: String? = null) {
-            val config = OpenClawGatewayConfig.fromContext(this)
-            val identity = OpenClawGatewayCrypto.identityDebugJson(this)
-            val summary = OpenClawGatewayAuthStore.authDebugSummary(this)
-            val issue = OpenClawGatewayDiagnostics.classify(lastError)
-            val issueText = issue?.let { " | issue=${it.summary}" }.orEmpty()
-            tvNodeIdentity.text = buildString {
-                append("nodeId=")
-                append(NodeIdentity.getStableNodeId(this@MainActivity))
-                append("\ninstanceId=")
-                append(NodeIdentity.getNodeInstanceId(this@MainActivity))
-            }
-            tvGatewayDebug.text = buildString {
-                append("gateway: ws=")
-                append(if (config.wsUrl.isBlank()) "(unset)" else config.wsUrl)
-                append("\n")
-                append("auth: ")
-                append(summary)
-                append("\n")
-                append("deviceId=")
-                append(identity.optString("deviceId").ifBlank { "(missing)" })
-                append(" alg=")
-                append(identity.optString("algorithm").ifBlank { "?" })
-                append(issueText)
-                if (!lastError.isNullOrBlank()) {
-                    append("\nlastError=")
-                    append(lastError.take(180))
+            runCatching {
+                val config = OpenClawGatewayConfig.fromContext(this)
+                val identity = OpenClawGatewayCrypto.identityDebugJson(this)
+                val summary = OpenClawGatewayAuthStore.authDebugSummary(this)
+                val issue = OpenClawGatewayDiagnostics.classify(lastError)
+                val issueText = issue?.let { " | issue=${it.summary}" }.orEmpty()
+                tvNodeIdentity.text = buildString {
+                    append("nodeId=")
+                    append(NodeIdentity.getStableNodeId(this@MainActivity))
+                    append("\ninstanceId=")
+                    append(NodeIdentity.getNodeInstanceId(this@MainActivity))
+                }
+                tvGatewayDebug.text = buildString {
+                    append("gateway: ws=")
+                    append(if (config.wsUrl.isBlank()) "(unset)" else config.wsUrl)
+                    append("\n")
+                    append("auth: ")
+                    append(summary)
+                    append("\n")
+                    append("deviceId=")
+                    append(identity.optString("deviceId").ifBlank { "(missing)" })
+                    append(" alg=")
+                    append(identity.optString("algorithm").ifBlank { "?" })
+                    append(issueText)
+                    if (!lastError.isNullOrBlank()) {
+                        append("\nlastError=")
+                        append(lastError.take(180))
+                    }
+                }
+            }.onFailure { err ->
+                tvNodeIdentity.text = "nodeId=(recovery)\ninstanceId=(recovery)"
+                tvGatewayDebug.text = buildString {
+                    append("gateway debug unavailable")
+                    append("\nerror=")
+                    append(err.message ?: err::class.java.simpleName)
+                    if (!lastError.isNullOrBlank()) {
+                        append("\nlastError=")
+                        append(lastError.take(180))
+                    }
                 }
             }
         }

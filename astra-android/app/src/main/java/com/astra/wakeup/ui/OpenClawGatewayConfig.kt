@@ -20,7 +20,7 @@ data class OpenClawGatewayConfig(
 ) {
     companion object {
         fun fromContext(context: Context): OpenClawGatewayConfig {
-            OpenClawGatewayAuthStore.ensureScaffold(context)
+            runCatching { OpenClawGatewayAuthStore.ensureScaffold(context) }
             val prefs = context.getSharedPreferences(ASTRA_PREFS, Context.MODE_PRIVATE)
             val apiUrl = prefs.getString("api_url", "") ?: ""
             return fromPrefsApiUrl(
@@ -75,10 +75,29 @@ object OpenClawGatewayAuthStore {
                 .putString("gateway_device_id", "android-${UUID.randomUUID()}")
                 .apply()
         }
+
         OpenClawGatewayCrypto.ensureDeviceIdentity(context)
             .onSuccess { identity ->
                 prefs.edit().putString("gateway_device_id", identity.deviceId).apply()
             }
+            .onFailure {
+                prefs.edit()
+                    .remove("gateway_device_public_key_pem")
+                    .remove("gateway_device_private_key_pem")
+                    .remove("gateway_device_identity_created_at")
+                    .remove("gateway_device_key_algorithm")
+                    .remove("gateway_device_identity_version")
+                    .remove("gateway_device_token")
+                    .remove("gateway_device_token_issued_at")
+                    .putString("gateway_device_id", "android-${UUID.randomUUID()}")
+                    .apply()
+
+                OpenClawGatewayCrypto.ensureDeviceIdentity(context)
+                    .onSuccess { identity ->
+                        prefs.edit().putString("gateway_device_id", identity.deviceId).apply()
+                    }
+            }
+
         if (!prefs.contains("gateway_session_key")) {
             prefs.edit().putString("gateway_session_key", "main").apply()
         }
