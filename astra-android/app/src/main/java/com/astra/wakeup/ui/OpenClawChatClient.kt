@@ -27,10 +27,14 @@ class OpenClawChatClient(
 
     fun chat(context: Context, config: OpenClawGatewayConfig, userText: String): OpenClawChatResult {
         if (shouldUseBridge(config)) {
-            val queued = OpenClawBridgeClient.directChat(config.httpBaseUrl, userText, config.sessionKey)
+            val bridged = OpenClawBridgeRealtimeClient.sendAndAwaitReply(
+                apiUrl = config.httpBaseUrl,
+                text = userText,
+                agent = config.sessionKey
+            )
             return OpenClawChatResult(
-                reply = if (queued.ok) "Sent through Command Center bridge. Watch the activity feed for Astra's reply." else null,
-                error = queued.error
+                reply = bridged.reply,
+                error = bridged.error
             )
         }
 
