@@ -55,6 +55,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun quarantinePairedStartupState() {
+        val prefs = getSharedPreferences("astra", MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("gateway_connected", false)
+            .remove("gateway_bootstrap_token")
+            .remove("gateway_device_token")
+            .remove("gateway_device_token_issued_at")
+            .remove("gateway_last_auth_json")
+            .remove("gateway_last_role")
+            .remove("gateway_last_scopes")
+            .remove("gateway_last_methods")
+            .remove("gateway_last_events")
+            .remove("gateway_device_public_key_pem")
+            .remove("gateway_device_private_key_pem")
+            .remove("gateway_device_identity_created_at")
+            .remove("gateway_device_key_algorithm")
+            .remove("gateway_device_identity_version")
+            .putString("gateway_device_id", "android-quarantine")
+            .apply()
+        runCatching { OpenClawNodeService.stop(this) }
+        runCatching { stopService(Intent(this, ContextOrchestratorService::class.java)) }
+    }
+
     private fun showStartupRecoveryUi(error: Throwable) {
         Log.e("MainActivity", "Startup crashed; showing recovery UI", error)
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
@@ -131,6 +154,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         try {
             setContentView(R.layout.activity_main)
+
+            if (pairedLaunchSafeMode) {
+                quarantinePairedStartupState()
+            }
 
             val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         val etApiUrl = findViewById<EditText>(R.id.etApiUrl)
@@ -833,9 +860,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnConnectGateway.setOnClickListener {
-            if (pairedLaunchSafeMode && isConnectedState()) {
-                refreshGatewayDebug()
-            }
+            refreshGatewayDebug()
             connectThisPhone()
         }
 
