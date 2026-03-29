@@ -16,6 +16,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.graphics.Rect
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -172,12 +173,22 @@ class AstraOverlayService : Service() {
         removeOrb()
         lastOutsideTapAtMs = 0L
         val panel = LayoutInflater.from(this).inflate(R.layout.activity_astra_overlay, null)
+        val panelCard = panel.findViewById<View>(R.id.overlayPanelCard)
         panel.setOnTouchListener { _, event ->
-            if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
-                handleOutsideTap()
-                true
-            } else {
-                false
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (isTouchOutsidePanelCard(panelCard, event)) {
+                        handleOutsideTap()
+                        true
+                    } else {
+                        false
+                    }
+                }
+                MotionEvent.ACTION_OUTSIDE -> {
+                    handleOutsideTap()
+                    true
+                }
+                else -> false
             }
         }
         panelController = AstraOverlayPanelController(
@@ -193,9 +204,9 @@ class AstraOverlayService : Service() {
         panelController?.onShow()
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
@@ -220,6 +231,12 @@ class AstraOverlayService : Service() {
         } else {
             lastOutsideTapAtMs = now
         }
+    }
+
+    private fun isTouchOutsidePanelCard(panelCard: View, event: MotionEvent): Boolean {
+        val rect = Rect()
+        panelCard.getGlobalVisibleRect(rect)
+        return !rect.contains(event.rawX.toInt(), event.rawY.toInt())
     }
 
     private fun removePanel() {
