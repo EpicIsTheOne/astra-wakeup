@@ -22,6 +22,8 @@ import android.widget.TextView
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.astra.wakeup.AstraCrashReport
+import com.astra.wakeup.AstraCrashStore
 import com.astra.wakeup.R
 import com.astra.wakeup.alarm.AlarmDiagnostics
 import com.astra.wakeup.alarm.AlarmNotifier
@@ -53,8 +55,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showStartupRecoveryUi(error: Throwable) {
-        Log.e("MainActivity", "Startup crashed; showing recovery UI", error)
+    private fun enterRecoveryMode(message: String) {
         val prefs = getSharedPreferences("astra", MODE_PRIVATE)
         prefs.edit()
             .putBoolean("gateway_connected", false)
@@ -69,16 +70,6 @@ class MainActivity : AppCompatActivity() {
         runCatching {
             val state = repo.getState()
             if (state.enabled) repo.saveState(state.copy(enabled = false))
-        }
-
-        val message = buildString {
-            append("Astra hit a startup crash and switched into recovery mode.\n\n")
-            append("What I disabled automatically:\n")
-            append("• saved live connection state\n")
-            append("• interventions\n")
-            append("• overlay/background startup leftovers\n\n")
-            append("Crash summary:\n")
-            append((error.message ?: error::class.java.simpleName).take(400))
         }
 
         val content = LinearLayout(this).apply {
@@ -111,6 +102,42 @@ class MainActivity : AppCompatActivity() {
         setContentView(ScrollView(this).apply { addView(content) })
     }
 
+    private fun showStartupRecoveryUi(error: Throwable) {
+        Log.e("MainActivity", "Startup crashed; showing recovery UI", error)
+        val stackTop = error.stackTrace.take(8).joinToString("\n") { element ->
+            "at ${element.className}.${element.methodName}(${element.fileName ?: "UnknownSource"}:${element.lineNumber})"
+        }
+        val message = buildString {
+            append("Astra hit a startup crash and switched into recovery mode.\n\n")
+            append("What I disabled automatically:\n")
+            append("• saved live connection state\n")
+            append("• interventions\n")
+            append("• overlay/background startup leftovers\n\n")
+            append("Crash summary:\n")
+            append(error::class.java.name)
+            append("\n")
+            append(error.message ?: "(no message)")
+            if (stackTop.isNotBlank()) {
+                append("\n\nTop stack:\n")
+                append(stackTop.take(1600))
+            }
+        }
+        enterRecoveryMode(message)
+    }
+
+    private fun showPersistedStartupRecoveryUi(report: AstraCrashReport) {
+        Log.e("MainActivity", "Showing persisted startup crash report: ${report.exceptionClass}: ${report.message}")
+        val message = buildString {
+            append("Astra captured a startup crash from the previous launch and switched into recovery mode.\n\n")
+            append("What I disabled automatically:\n")
+            append("• saved live connection state\n")
+            append("• interventions\n")
+            append("• overlay/background startup leftovers\n\n")
+            append(AstraCrashStore.formatForUi(report))
+        }
+        enterRecoveryMode(message)
+    }
+
     private fun queryDownloadStatus(downloadId: Long): Pair<Int?, Int?> {
         if (downloadId <= 0L) return null to null
         val manager = getSystemService(DownloadManager::class.java)
@@ -127,6 +154,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AstraCrashStore.consume(this)?.let { report ->
+            showPersistedStartupRecoveryUi(report)
+            return
+        }
         try {
             setContentView(R.layout.activity_main)
 
@@ -825,6 +856,11 @@ class MainActivity : AppCompatActivity() {
         }
         if (cbAutoUpdate.isChecked) checkForUpdates(autoTriggered = true)
         runStatusCheck()
+        window.decorView.post {
+            AstraCrashStore.consume(this)?.let { report ->
+                showPersistedStartupRecoveryUi(report)
+            }
+        }
 
         btnToggleAdvancedGateway.setOnClickListener {
             setAdvancedVisible(layoutGatewayAdvanced.visibility != android.view.View.VISIBLE)

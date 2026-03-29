@@ -7,7 +7,9 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.astra.wakeup.AstraCrashStore
 import com.astra.wakeup.R
 import com.astra.wakeup.brain.BrainEventLog
 import com.astra.wakeup.brain.actions.ActionExecutor
@@ -31,47 +33,56 @@ class AstraBrainService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        ensureChannel()
-        val notif: Notification = NotificationCompat.Builder(this, "astra_brain_service")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Astra Brain")
-            .setContentText("Perceiving and reasoning")
-            .setOngoing(true)
-            .build()
-        startForeground(7410, notif)
+        runCatching {
+            ensureChannel()
+            val notif: Notification = NotificationCompat.Builder(this, "astra_brain_service")
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("Astra Brain")
+                .setContentText("Perceiving and reasoning")
+                .setOngoing(true)
+                .build()
+            startForeground(7410, notif)
 
-        collectors = SignalCollectors(this)
-        collectors.start()
+            collectors = SignalCollectors(this)
+            collectors.start()
 
-        val memory = SharedPrefsMemoryStore(this)
-        val reasoner = Reasoner(memory)
-        val executor = ActionExecutor(this)
-        val hub = AutomationHub(this, executor)
+            val memory = SharedPrefsMemoryStore(this)
+            val reasoner = Reasoner(memory)
+            val executor = ActionExecutor(this)
+            val hub = AutomationHub(this, executor)
 
-        scope.launch {
-            EventBus.events.collectLatest { event ->
-                lastEvent = event.type
-                BrainEventLog.append(this@AstraBrainService, "info", "event: ${event.type}")
-                val decision = reasoner.decide(event)
-                lastDecision = decision.reason
-                BrainEventLog.append(this@AstraBrainService, "debug", "decision: ${decision.reason}")
-                decision.actions.forEach { executor.execute(it) }
-                hub.onEvent(event)
-                val st = hub.state(lastEvent, lastDecision)
-                getSharedPreferences("astra_brain", MODE_PRIVATE).edit()
-                    .putString("last_event", st.lastEvent)
-                    .putString("last_decision", st.lastDecision)
-                    .putInt("total_rules", st.totalRules)
-                    .putInt("context_rules", st.contextRules)
-                    .putInt("task_rules", st.taskRules)
-                    .putInt("cron_rules", st.cronRules)
-                    .apply()
+            scope.launch {
+                EventBus.events.collectLatest { event ->
+                    lastEvent = event.type
+                    BrainEventLog.append(this@AstraBrainService, "info", "event: ${event.type}")
+                    val decision = reasoner.decide(event)
+                    lastDecision = decision.reason
+                    BrainEventLog.append(this@AstraBrainService, "debug", "decision: ${decision.reason}")
+                    decision.actions.forEach { executor.execute(it) }
+                    hub.onEvent(event)
+                    val st = hub.state(lastEvent, lastDecision)
+                    getSharedPreferences("astra_brain", MODE_PRIVATE).edit()
+                        .putString("last_event", st.lastEvent)
+                        .putString("last_decision", st.lastDecision)
+                        .putInt("total_rules", st.totalRules)
+                        .putInt("context_rules", st.contextRules)
+                        .putInt("task_rules", st.taskRules)
+                        .putInt("cron_rules", st.cronRules)
+                        .apply()
+                }
             }
+        }.onFailure { err ->
+            Log.e("AstraBrainService", "Brain service startup failed", err)
+            AstraCrashStore.record(this, origin = "AstraBrainService.onCreate", throwable = err)
+            runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+            runCatching { stopSelf() }
         }
     }
 
     override fun onDestroy() {
-        collectors.stop()
+        if (this::collectors.isInitialized) {
+            collectors.stop()
+        }
         scope.cancel()
         super.onDestroy()
     }

@@ -14,7 +14,9 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.CalendarContract
+import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.astra.wakeup.AstraCrashStore
 import com.astra.wakeup.R
 import java.util.UUID
 
@@ -55,33 +57,40 @@ class ContextOrchestratorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        repo = ContextRuleRepository(this)
-        interventionRepo = InterventionRepository(this)
-        engine = ContextRuleEngine(ContextConditionEvaluator(), ContextActionExecutor(this), repo)
-        ensureChannel()
-        val n: Notification = NotificationCompat.Builder(this, "astra_context_engine")
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Astra Context Engine")
-            .setContentText("Watching context signals")
-            .setOngoing(true)
-            .build()
-        startForeground(7310, n)
+        runCatching {
+            repo = ContextRuleRepository(this)
+            interventionRepo = InterventionRepository(this)
+            engine = ContextRuleEngine(ContextConditionEvaluator(), ContextActionExecutor(this), repo)
+            ensureChannel()
+            val n: Notification = NotificationCompat.Builder(this, "astra_context_engine")
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("Astra Context Engine")
+                .setContentText("Watching context signals")
+                .setOngoing(true)
+                .build()
+            startForeground(7310, n)
 
-        val f = IntentFilter().apply {
-            addAction(Intent.ACTION_USER_PRESENT)
-            addAction(Intent.ACTION_POWER_CONNECTED)
-            addAction(Intent.ACTION_POWER_DISCONNECTED)
-            addAction(Intent.ACTION_HEADSET_PLUG)
-            addAction(AudioManagerCompat.ACTION_AUDIO_BECOMING_NOISY)
-            addAction(Intent.ACTION_TIME_TICK)
+            val f = IntentFilter().apply {
+                addAction(Intent.ACTION_USER_PRESENT)
+                addAction(Intent.ACTION_POWER_CONNECTED)
+                addAction(Intent.ACTION_POWER_DISCONNECTED)
+                addAction(Intent.ACTION_HEADSET_PLUG)
+                addAction(AudioManagerCompat.ACTION_AUDIO_BECOMING_NOISY)
+                addAction(Intent.ACTION_TIME_TICK)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, f, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(receiver, f)
+            }
+            handler.post(appUsageTick)
+        }.onFailure { err ->
+            Log.e("ContextOrchestrator", "Context engine startup failed", err)
+            AstraCrashStore.record(this, origin = "ContextOrchestratorService.onCreate", throwable = err)
+            runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+            runCatching { stopSelf() }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(receiver, f, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(receiver, f)
-        }
-        handler.post(appUsageTick)
     }
 
     override fun onDestroy() {
