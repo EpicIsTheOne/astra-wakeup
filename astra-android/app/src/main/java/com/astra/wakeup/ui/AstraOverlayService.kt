@@ -54,6 +54,7 @@ class AstraOverlayService : Service() {
     private var receivedAudioForCurrentTurn = false
     private var assistantPlaybackActive = false
     private var micGateUntilMs = 0L
+    private var bargeInVoiceChunkStreak = 0
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var screenCaptureController: OverlayScreenCaptureController? = null
@@ -485,14 +486,21 @@ class AstraOverlayService : Service() {
     private fun markAssistantPlaybackActive(active: Boolean) {
         assistantPlaybackActive = active
         micGateUntilMs = if (active) System.currentTimeMillis() + 550L else System.currentTimeMillis() + 160L
+        if (!active) bargeInVoiceChunkStreak = 0
     }
 
     private fun shouldUploadMicChunk(pcm16: ByteArray): Boolean {
         if (!overlayOwnedCall) return false
         if (!assistantPlaybackActive && System.currentTimeMillis() >= micGateUntilMs) return true
         val rms = estimatePcm16Rms(pcm16)
-        val allowBargeIn = rms >= 1500
+        val allowBargeIn = rms >= 1800
         if (allowBargeIn) {
+            bargeInVoiceChunkStreak += 1
+        } else {
+            bargeInVoiceChunkStreak = 0
+        }
+        if (bargeInVoiceChunkStreak >= 3) {
+            bargeInVoiceChunkStreak = 0
             pendingVoiceFallbackText = null
             receivedAudioForCurrentTurn = false
             handler.removeCallbacks(voiceFallbackRunnable)

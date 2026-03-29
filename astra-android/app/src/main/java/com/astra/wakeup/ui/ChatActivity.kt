@@ -63,6 +63,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var assistantPlaybackActive = false
     private var micGateUntilMs = 0L
     private var reconnectNoticeShown = false
+    private var bargeInVoiceChunkStreak = 0
     private val voiceFallbackRunnable = Runnable {
         val fallback = pendingVoiceFallbackText
         if (!callMode || fallback.isNullOrBlank() || receivedAudioForCurrentTurn) return@Runnable
@@ -491,6 +492,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             if (callMode) setCallStatus("speaking…")
         } else {
             micGateUntilMs = System.currentTimeMillis() + 160L
+            bargeInVoiceChunkStreak = 0
         }
     }
 
@@ -498,10 +500,16 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (!callMode) return false
         if (!assistantPlaybackActive && System.currentTimeMillis() >= micGateUntilMs) return true
         val rms = estimatePcm16Rms(pcm16)
-        val allowBargeIn = rms >= 1500
+        val allowBargeIn = rms >= 1800
         if (allowBargeIn) {
+            bargeInVoiceChunkStreak += 1
+        } else {
+            bargeInVoiceChunkStreak = 0
+        }
+        if (bargeInVoiceChunkStreak >= 3) {
+            bargeInVoiceChunkStreak = 0
             handler.post {
-                appendDebugMessage("Strong user speech detected while Astra was talking; allowing barge-in.")
+                appendDebugMessage("Sustained user speech detected while Astra was talking; allowing barge-in.")
                 pendingVoiceFallbackText = null
                 pendingResumeAfterTts = false
                 handler.removeCallbacks(voiceFallbackRunnable)
