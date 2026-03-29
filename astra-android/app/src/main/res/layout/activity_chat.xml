@@ -99,6 +99,14 @@
         android:text="Remember my next message"
         android:textColor="#E5E7EB" />
 
+    <CheckBox
+        android:id="@+id/cbShowDebug"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:buttonTint="#F59E0B"
+        android:text="Show debug messages"
+        android:textColor="#E5E7EB" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

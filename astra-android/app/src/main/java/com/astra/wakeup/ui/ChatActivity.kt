@@ -54,6 +54,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var pendingVoiceFallbackText: String? = null
     private var receivedAudioForCurrentTurn = false
     private var uplinkChunkDebugCount = 0
+    private var debugMessagesEnabled = true
     private var typingDots = 0
     private val typingTicker = object : Runnable {
         override fun run() {
@@ -76,10 +77,24 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         etInput = findViewById(R.id.etChatInput)
         val btnCall = findViewById<Button>(R.id.btnCallToggle)
         val cbRemember = findViewById<CheckBox>(R.id.cbRemember)
+        val cbShowDebug = findViewById<CheckBox>(R.id.cbShowDebug)
         tvCall = findViewById(R.id.tvCallStatus)
         layoutTyping = findViewById(R.id.layoutTyping)
         tvTyping = findViewById(R.id.tvTyping)
         chatScroll = tvChat.parent as ScrollView
+
+        val prefs = getSharedPreferences("astra", MODE_PRIVATE)
+        debugMessagesEnabled = prefs.getBoolean("chat_debug_enabled", true)
+        cbShowDebug.isChecked = debugMessagesEnabled
+        cbShowDebug.setOnCheckedChangeListener { _, isChecked ->
+            debugMessagesEnabled = isChecked
+            prefs.edit().putBoolean("chat_debug_enabled", isChecked).apply()
+            appendMessage(
+                "Astra",
+                if (isChecked) "Fine. Debug spam is back on, since apparently you enjoy chaos." else "Debug spam is off now. You're welcome, Epic.",
+                isAstra = true
+            )
+        }
 
         tvChat.movementMethod = ScrollingMovementMethod()
         appendMessage("Astra", "All right, I'm here. Try to keep up.", isAstra = true)
@@ -121,7 +136,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             }
                             appendMessage("Astra", message, isAstra = true)
                             started.debug?.takeIf { it.isNotBlank() }?.let {
-                                appendMessage("Debug", it, isAstra = true)
+                                appendDebugMessage(it)
                             }
                             setCallStatus("call failed")
                             return@runOnUiThread
@@ -152,22 +167,22 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             onChunk = { chunk ->
                                 val sessionId = activeCallSessionId
                                 if (sessionId.isNullOrBlank()) {
-                                    runOnUiThread { appendMessage("Debug", "Skipping audio upload because session id is missing.", isAstra = true) }
+                                    runOnUiThread { appendDebugMessage("Skipping audio upload because session id is missing.") }
                                     return@AudioRecordStreamer
                                 }
                                 uplinkChunkDebugCount += 1
                                 if (uplinkChunkDebugCount <= 3 || uplinkChunkDebugCount % 25 == 0) {
-                                    runOnUiThread { appendMessage("Debug", "Posting uplink chunk #$uplinkChunkDebugCount len=${chunk.length}", isAstra = true) }
+                                    runOnUiThread { appendDebugMessage("Posting uplink chunk #$uplinkChunkDebugCount len=${chunk.length}") }
                                 }
                                 val upload = AstraCallSessionClient.sendAudioChunk(gatewayConfig.httpBaseUrl, sessionId, chunk)
                                 upload.onFailure { err ->
-                                    runOnUiThread { appendMessage("Debug", "Audio upload failed #$uplinkChunkDebugCount: ${err.message}", isAstra = true) }
+                                    runOnUiThread { appendDebugMessage("Audio upload failed #$uplinkChunkDebugCount: ${err.message}") }
                                 }
                             },
                             onError = { error -> runOnUiThread { setCallStatus("audio issue") ; appendMessage("Astra", "Audio stream issue: $error", isAstra = true) } },
-                            onDebug = { msg -> runOnUiThread { appendMessage("Debug", msg, isAstra = true) } },
+                            onDebug = { msg -> runOnUiThread { appendDebugMessage(msg) } },
                         ).also { it.start() }
-                        appendMessage("Debug", "Live mode active: streaming mic directly to Gemini backend (SpeechRecognizer loop disabled).", isAstra = true)
+                        appendDebugMessage("Live mode active: streaming mic directly to Gemini backend (SpeechRecognizer loop disabled).")
                     }
                 }.start()
             } else {
@@ -209,6 +224,11 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             })
         }
+    }
+
+    private fun appendDebugMessage(message: String) {
+        if (!debugMessagesEnabled || message.isBlank()) return
+        appendDebugMessage(message)
     }
 
     private fun appendMessage(speaker: String, message: String, isAstra: Boolean) {
@@ -389,7 +409,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         handler.postDelayed({
             val fallback = pendingVoiceFallbackText
             if (!callMode || fallback.isNullOrBlank() || receivedAudioForCurrentTurn) return@postDelayed
-            appendMessage("Debug", "No Gemini audio returned; using TTS fallback.", isAstra = true)
+            appendDebugMessage("No Gemini audio returned; using TTS fallback.")
             speak(fallback)
             pendingResumeAfterTts = true
             pendingVoiceFallbackText = null
@@ -460,7 +480,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 "call:debug" -> {
                     val message = data.optString("message").trim()
                     if (message.isNotBlank()) {
-                        appendMessage("Debug", message, isAstra = true)
+                        appendDebugMessage(message)
                     }
                 }
                 "call:session.ended" -> {
