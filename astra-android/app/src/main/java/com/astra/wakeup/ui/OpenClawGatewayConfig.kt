@@ -4,6 +4,7 @@ import android.content.Context
 import java.util.UUID
 
 private const val ASTRA_PREFS = "astra"
+private const val DEFAULT_ASTRA_BASE_URL = "https://techexplore.us"
 
 enum class GatewayAuthMode {
     NONE,
@@ -73,7 +74,11 @@ data class OpenClawGatewayConfig(
         fun fromContext(context: Context): OpenClawGatewayConfig {
             runCatching { OpenClawGatewayAuthStore.ensureScaffold(context) }
             val prefs = context.getSharedPreferences(ASTRA_PREFS, Context.MODE_PRIVATE)
-            val apiUrl = prefs.getString("api_url", "") ?: ""
+            val storedApiUrl = prefs.getString("api_url", "") ?: ""
+            val apiUrl = storedApiUrl.ifBlank { DEFAULT_ASTRA_BASE_URL }
+            if (storedApiUrl.isBlank()) {
+                prefs.edit().putString("api_url", apiUrl).apply()
+            }
             return fromPrefsApiUrl(
                 apiUrl = apiUrl,
                 gatewayToken = prefs.getString("gateway_token", null),
@@ -92,7 +97,7 @@ data class OpenClawGatewayConfig(
             insecureLocalAuthAllowed: Boolean = false,
             sessionKey: String = "main"
         ): OpenClawGatewayConfig {
-            val base = apiUrl.trim().trimEnd('/')
+            val base = apiUrl.trim().trimEnd('/').ifBlank { DEFAULT_ASTRA_BASE_URL }
             val normalizedHttp = when {
                 base.isBlank() -> ""
                 base.endsWith("/api/astra") -> base.removeSuffix("/api/astra")

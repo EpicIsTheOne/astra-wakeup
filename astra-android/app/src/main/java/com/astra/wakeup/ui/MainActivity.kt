@@ -220,9 +220,13 @@ class MainActivity : AppCompatActivity() {
         val btnSkipUpdate = findViewById<Button>(R.id.btnSkipUpdate)
         val tvUpdateNotes = findViewById<TextView>(R.id.tvUpdateNotes)
 
-        val defaultExternalUrl = "http://72.60.29.204:18789"
+        val defaultExternalUrl = "https://techexplore.us"
         val savedApiUrl = prefs.getString("api_url", null)?.takeIf { it.isNotBlank() }
-        etApiUrl.setText(savedApiUrl ?: defaultExternalUrl)
+        val resolvedApiUrl = savedApiUrl ?: defaultExternalUrl
+        if (savedApiUrl.isNullOrBlank()) {
+            prefs.edit().putString("api_url", resolvedApiUrl).apply()
+        }
+        etApiUrl.setText(resolvedApiUrl)
         etGatewayToken.setText(prefs.getString("gateway_token", "") ?: "")
         etBootstrapToken.setText(prefs.getString("gateway_bootstrap_token", "") ?: "")
         etMediaCenterBaseUrl.setText(prefs.getString("media_center_base_url", MediaCenterClient.baseUrl(this)) ?: MediaCenterClient.baseUrl(this))
