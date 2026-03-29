@@ -283,9 +283,6 @@ class OpenClawGatewayTransport(
             lastResult = result
             val error = result.exceptionOrNull()?.message
             if (result.isSuccess) return result
-            maybeFollowUpAfterPairingRequired(context, config, timeoutMs, onHello, error)?.let { followUp ->
-                return followUp
-            }
             if (!shouldRetrySharedTokenSignature(config, error, index, strategies.size)) return result
         }
         return lastResult
@@ -550,39 +547,6 @@ class OpenClawGatewayTransport(
         return normalized.contains("device signature invalid")
     }
 
-    private fun maybeFollowUpAfterPairingRequired(
-        context: Context,
-        config: OpenClawGatewayConfig,
-        timeoutMs: Long,
-        onHello: ((JSONObject) -> Unit)?,
-        initialError: String?
-    ): Result<OpenClawGatewaySession>? {
-        val normalized = initialError?.lowercase().orEmpty()
-        if (!normalized.contains("pairing required")) return null
-        if (config.resolvedAuth().mode != GatewayAuthMode.SHARED_TOKEN) return null
-
-        val retryDelaysMs = listOf(1500L, 3000L, 5000L)
-        var lastResult: Result<OpenClawGatewaySession>? = null
-        for ((index, delayMs) in retryDelaysMs.withIndex()) {
-            Thread.sleep(delayMs)
-            val refreshedConfig = OpenClawGatewayConfig.fromContext(context)
-            val result = connectWithFallback(context, refreshedConfig, timeoutMs, onHello)
-            lastResult = result
-            if (result.isSuccess) return result
-            val error = result.exceptionOrNull()?.message?.lowercase().orEmpty()
-            if (!error.contains("pairing required")) return result
-            OpenClawGatewayDiagnostics.recordHandshake(
-                context = context,
-                stage = "pairing_followup_retry",
-                config = refreshedConfig,
-                error = result.exceptionOrNull()?.message,
-                extra = JSONObject()
-                    .put("attempt", index + 1)
-                    .put("delayMs", delayMs)
-            )
-        }
-        return lastResult
-    }
 
     private fun chatSendFrame(reqId: String, sessionKey: String, userText: String): JSONObject {
         return JSONObject().apply {
