@@ -18,6 +18,7 @@ data class AstraCallStartResult(
     val ok: Boolean,
     val session: AstraCallSession? = null,
     val error: String? = null,
+    val debug: String? = null,
 )
 
 object AstraCallSessionClient {
@@ -45,25 +46,37 @@ object AstraCallSessionClient {
 
     fun startCall(apiUrl: String, agent: String? = null): AstraCallStartResult {
         val base = commandCenterBase(apiUrl)
-        if (base.isBlank()) return AstraCallStartResult(false, error = "Missing API URL")
+        val url = if (base.isBlank()) "" else "$base/api/call/start"
+        if (base.isBlank()) return AstraCallStartResult(false, error = "Missing API URL", debug = "apiUrl=$apiUrl | base=<blank>")
         return runCatching {
-            val conn = URL("$base/api/call/start").openConnection() as HttpURLConnection
+            val conn = URL(url).openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.connectTimeout = 10_000
             conn.readTimeout = 10_000
             conn.doOutput = true
+            conn.instanceFollowRedirects = true
             conn.setRequestProperty("Content-Type", "application/json")
+            conn.setRequestProperty("Accept", "application/json")
             conn.outputStream.bufferedWriter().use { writer ->
                 writer.write(JSONObject().apply {
                     if (!agent.isNullOrBlank()) put("agent", agent)
                 }.toString())
             }
             val code = conn.responseCode
+            val finalUrl = conn.url?.toString().orEmpty()
             val body = (if (code in 200..299) conn.inputStream else conn.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
             val json = runCatching { JSONObject(body) }.getOrElse { JSONObject() }
+            val debug = buildString {
+                append("apiUrl=").append(apiUrl)
+                append(" | base=").append(base)
+                append(" | url=").append(url)
+                append(" | finalUrl=").append(finalUrl)
+                append(" | http=").append(code)
+                if (body.isNotBlank()) append(" | body=").append(body.take(240).replace('\n', ' '))
+            }
             if (code !in 200..299) {
-                return AstraCallStartResult(false, error = json.optString("error").ifBlank { "HTTP $code" })
+                return AstraCallStartResult(false, error = json.optString("error").ifBlank { "HTTP $code" }, debug = debug)
             }
             val session = json.optJSONObject("session") ?: JSONObject()
             AstraCallStartResult(
@@ -72,10 +85,15 @@ object AstraCallSessionClient {
                     id = session.optString("id"),
                     state = session.optString("state").ifBlank { "ready" },
                     agent = session.optString("agent").ifBlank { agent ?: "orchestrator" },
-                )
+                ),
+                debug = debug,
             )
         }.getOrElse {
-            AstraCallStartResult(false, error = it.message ?: "network error")
+            AstraCallStartResult(
+                false,
+                error = it.message ?: "network error",
+                debug = "apiUrl=$apiUrl | base=$base | url=$url | exception=${it::class.java.simpleName}: ${it.message}"
+            )
         }
     }
 

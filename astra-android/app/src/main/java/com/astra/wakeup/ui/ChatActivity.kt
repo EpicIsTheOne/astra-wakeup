@@ -110,6 +110,9 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         "Couldn't start the live call session: $reason"
                     }
                     appendMessage("Astra", message, isAstra = true)
+                    started.debug?.takeIf { it.isNotBlank() }?.let {
+                        appendMessage("Debug", it, isAstra = true)
+                    }
                     setCallStatus("call failed")
                     return@setOnClickListener
                 }
