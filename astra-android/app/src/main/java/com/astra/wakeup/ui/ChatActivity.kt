@@ -487,10 +487,10 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun markAssistantPlaybackActive(active: Boolean) {
         assistantPlaybackActive = active
         if (active) {
-            micGateUntilMs = System.currentTimeMillis() + 900L
+            micGateUntilMs = System.currentTimeMillis() + 550L
             if (callMode) setCallStatus("speaking…")
         } else {
-            micGateUntilMs = System.currentTimeMillis() + 250L
+            micGateUntilMs = System.currentTimeMillis() + 160L
         }
     }
 
@@ -498,7 +498,7 @@ class ChatActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (!callMode) return false
         if (!assistantPlaybackActive && System.currentTimeMillis() >= micGateUntilMs) return true
         val rms = estimatePcm16Rms(pcm16)
-        val allowBargeIn = rms >= 2500
+        val allowBargeIn = rms >= 1500
         if (allowBargeIn) {
             handler.post {
                 appendDebugMessage("Strong user speech detected while Astra was talking; allowing barge-in.")

@@ -330,9 +330,12 @@ class AstraOverlayService : Service() {
 
     private fun startOverlayCall() {
         if (overlayOwnedCall || currentCallState.active) return
+        removePanel()
+        removeOrb()
         val gatewayConfig = OpenClawGatewayConfig.fromContext(this)
         overlayOwnedCall = true
         updateOverlayCallState(active = true, phase = "connecting…")
+        showCompactCallUiIfNeeded()
         Thread {
             val started = AstraCallSessionClient.startCall(gatewayConfig.httpBaseUrl)
             handler.post {
@@ -468,14 +471,14 @@ class AstraOverlayService : Service() {
 
     private fun markAssistantPlaybackActive(active: Boolean) {
         assistantPlaybackActive = active
-        micGateUntilMs = if (active) System.currentTimeMillis() + 900L else System.currentTimeMillis() + 250L
+        micGateUntilMs = if (active) System.currentTimeMillis() + 550L else System.currentTimeMillis() + 160L
     }
 
     private fun shouldUploadMicChunk(pcm16: ByteArray): Boolean {
         if (!overlayOwnedCall) return false
         if (!assistantPlaybackActive && System.currentTimeMillis() >= micGateUntilMs) return true
         val rms = estimatePcm16Rms(pcm16)
-        val allowBargeIn = rms >= 2500
+        val allowBargeIn = rms >= 1500
         if (allowBargeIn) {
             pendingVoiceFallbackText = null
             receivedAudioForCurrentTurn = false
