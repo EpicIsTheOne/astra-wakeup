@@ -43,12 +43,18 @@ data class OpenClawDeviceIdentity(
     val algorithm: String = "Ed25519"
 )
 
+enum class OpenClawDeviceSignatureVersion {
+    V2,
+    V3
+}
+
 data class OpenClawSignedDeviceAssertion(
     val deviceId: String,
     val publicKey: String,
     val signature: String,
     val signedAtMs: Long,
-    val nonce: String
+    val nonce: String,
+    val version: OpenClawDeviceSignatureVersion
 )
 
 object OpenClawGatewayCrypto {
@@ -95,31 +101,45 @@ object OpenClawGatewayCrypto {
         nonce: String,
         platform: String = "android",
         deviceFamily: String = Build.MODEL.orEmpty(),
-        signatureToken: String? = null
+        signatureToken: String? = null,
+        signatureVersion: OpenClawDeviceSignatureVersion = OpenClawDeviceSignatureVersion.V3
     ): Result<OpenClawSignedDeviceAssertion> {
         if (nonce.isBlank()) return Result.failure(IllegalArgumentException("Missing connect nonce"))
 
         return ensureDeviceIdentity(context).mapCatching { identity ->
             val signedAtMs = System.currentTimeMillis()
-            val payload = buildDeviceAuthPayloadV3(
-                deviceId = identity.deviceId,
-                clientId = clientId,
-                clientMode = clientMode,
-                role = role,
-                scopes = scopes,
-                signedAtMs = signedAtMs,
-                token = signatureToken,
-                nonce = nonce,
-                platform = platform,
-                deviceFamily = deviceFamily
-            )
+            val payload = when (signatureVersion) {
+                OpenClawDeviceSignatureVersion.V2 -> buildDeviceAuthPayloadV2(
+                    deviceId = identity.deviceId,
+                    clientId = clientId,
+                    clientMode = clientMode,
+                    role = role,
+                    scopes = scopes,
+                    signedAtMs = signedAtMs,
+                    token = signatureToken,
+                    nonce = nonce
+                )
+                OpenClawDeviceSignatureVersion.V3 -> buildDeviceAuthPayloadV3(
+                    deviceId = identity.deviceId,
+                    clientId = clientId,
+                    clientMode = clientMode,
+                    role = role,
+                    scopes = scopes,
+                    signedAtMs = signedAtMs,
+                    token = signatureToken,
+                    nonce = nonce,
+                    platform = platform,
+                    deviceFamily = deviceFamily
+                )
+            }
             val signature = signEd25519(identity.privateKeyPem, payload)
             OpenClawSignedDeviceAssertion(
                 deviceId = identity.deviceId,
                 publicKey = publicKeyRawBase64UrlFromPem(identity.publicKeyPem),
                 signature = signature,
                 signedAtMs = signedAtMs,
-                nonce = nonce
+                nonce = nonce,
+                version = signatureVersion
             )
         }
     }
@@ -192,6 +212,31 @@ object OpenClawGatewayCrypto {
         signature.initSign(parsePrivateKey(privateKeyPem))
         signature.update(payload.toByteArray(Charsets.UTF_8))
         return base64Url(signature.sign())
+    }
+
+    private fun buildDeviceAuthPayloadV2(
+        deviceId: String,
+        clientId: String,
+        clientMode: String,
+        role: String,
+        scopes: List<String>,
+        signedAtMs: Long,
+        token: String?,
+        nonce: String
+    ): String {
+        val normalizedScopes = scopes.mapNotNull { scope ->
+            scope.trim().takeIf { it.isNotBlank() }
+        }.joinToString(",")
+        return listOf(
+            deviceId,
+            clientId,
+            clientMode,
+            role,
+            normalizedScopes,
+            signedAtMs.toString(),
+            token.orEmpty(),
+            nonce
+        ).joinToString("|")
     }
 
     private fun buildDeviceAuthPayloadV3(

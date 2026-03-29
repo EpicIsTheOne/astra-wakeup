@@ -379,10 +379,8 @@ class OpenClawGatewayTransport(
             }
 
             resolvedAuth.payload?.let { params.put("auth", it) }
-            if (resolvedAuth.mode != GatewayAuthMode.SHARED_TOKEN) {
-                context?.let {
-                    buildDevicePayload(it, resolvedAuth, nonce)?.let { device -> params.put("device", device) }
-                }
+            context?.let {
+                buildDevicePayload(it, resolvedAuth, nonce)?.let { device -> params.put("device", device) }
             }
 
             JSONObject().apply {
@@ -396,6 +394,11 @@ class OpenClawGatewayTransport(
 
     private fun buildDevicePayload(context: Context, resolvedAuth: GatewayResolvedAuth, nonce: String): JSONObject? {
         val signatureToken = resolvedAuth.signatureToken
+        val signatureVersion = if (resolvedAuth.mode == GatewayAuthMode.SHARED_TOKEN) {
+            OpenClawDeviceSignatureVersion.V2
+        } else {
+            OpenClawDeviceSignatureVersion.V3
+        }
         val signed = OpenClawGatewayCrypto.signConnectChallenge(
             context = context,
             clientId = ANDROID_GATEWAY_CLIENT_ID,
@@ -405,7 +408,8 @@ class OpenClawGatewayTransport(
             nonce = nonce,
             platform = "android",
             deviceFamily = Build.MODEL ?: "android",
-            signatureToken = signatureToken
+            signatureToken = signatureToken,
+            signatureVersion = signatureVersion
         ).getOrElse { return null }
 
         return JSONObject().apply {
@@ -414,6 +418,7 @@ class OpenClawGatewayTransport(
             put("signature", signed.signature)
             put("signedAt", signed.signedAtMs)
             put("nonce", signed.nonce)
+            put("signatureVersion", signed.version.name)
         }
     }
 

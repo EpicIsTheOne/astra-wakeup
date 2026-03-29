@@ -91,6 +91,7 @@ object OpenClawGatewayDiagnostics {
                     put("signaturePreview", it.optString("signature").take(24))
                     put("signedAt", it.optLong("signedAt"))
                     put("noncePreview", it.optString("nonce").take(16))
+                    put("signatureVersion", it.optString("signatureVersion"))
                 }
             } ?: JSONObject())
             put("helloAuth", helloPayload?.optJSONObject("auth")?.let { JSONObject(it.toString()) } ?: JSONObject())
@@ -125,6 +126,10 @@ object OpenClawGatewayDiagnostics {
             device?.optString("id")?.takeIf { it.isNotBlank() }?.let {
                 append(" deviceId=")
                 append(it.take(16))
+            }
+            device?.optString("signatureVersion")?.takeIf { it.isNotBlank() }?.let {
+                append(" sig=")
+                append(it)
             }
             helloAuth?.optString("deviceToken")?.takeIf { it.isNotBlank() }?.let {
                 append(" helloDeviceToken=yes")
