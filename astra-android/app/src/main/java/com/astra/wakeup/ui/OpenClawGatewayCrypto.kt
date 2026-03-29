@@ -54,7 +54,18 @@ data class OpenClawSignedDeviceAssertion(
 object OpenClawGatewayCrypto {
     fun ensureDeviceIdentity(context: Context): Result<OpenClawDeviceIdentity> {
         val prefs = context.getSharedPreferences(ASTRA_PREFS, Context.MODE_PRIVATE)
-        loadIdentity(prefs)?.let { return Result.success(it) }
+
+        loadIdentity(prefs)?.let { persisted ->
+            return runCatching {
+                validateIdentity(persisted)
+                persisted
+            }.recoverCatching {
+                clearPersistedIdentity(prefs)
+                val regenerated = generateEd25519Identity()
+                persistIdentity(prefs, regenerated)
+                regenerated
+            }
+        }
 
         return runCatching {
             val generated = generateEd25519Identity()
@@ -65,7 +76,14 @@ object OpenClawGatewayCrypto {
 
     fun currentDeviceIdentity(context: Context): OpenClawDeviceIdentity? {
         val prefs = context.getSharedPreferences(ASTRA_PREFS, Context.MODE_PRIVATE)
-        return loadIdentity(prefs)
+        val identity = loadIdentity(prefs) ?: return null
+        return runCatching {
+            validateIdentity(identity)
+            identity
+        }.getOrElse {
+            clearPersistedIdentity(prefs)
+            null
+        }
     }
 
     fun signConnectChallenge(
@@ -138,6 +156,8 @@ object OpenClawGatewayCrypto {
             .remove("gateway_device_identity_created_at")
             .remove("gateway_device_key_algorithm")
             .remove("gateway_device_identity_version")
+            .remove("gateway_device_token")
+            .remove("gateway_device_token_issued_at")
             .apply()
     }
 
