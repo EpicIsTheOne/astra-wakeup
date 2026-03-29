@@ -309,7 +309,7 @@ class OpenClawGatewayTransport(
                 put("userAgent", "astra-android/0.2.0")
             }
 
-            buildAuthPayload(config)?.let { params.put("auth", it) }
+            config.effectiveAuthPayload()?.let { params.put("auth", it) }
             context?.let {
                 buildDevicePayload(it, config, nonce)?.let { device -> params.put("device", device) }
             }
@@ -323,19 +323,8 @@ class OpenClawGatewayTransport(
         }
     }
 
-    private fun buildAuthPayload(config: OpenClawGatewayConfig): JSONObject? {
-        val auth = JSONObject()
-        config.gatewayToken?.takeIf { it.isNotBlank() }?.let { auth.put("token", it) }
-        config.bootstrapToken?.takeIf { it.isNotBlank() }?.let { auth.put("bootstrapToken", it) }
-        config.deviceToken?.takeIf { it.isNotBlank() }?.let { auth.put("deviceToken", it) }
-        return auth.takeIf { it.length() > 0 }
-    }
-
     private fun buildDevicePayload(context: Context, config: OpenClawGatewayConfig, nonce: String): JSONObject? {
-        val signatureToken = config.gatewayToken
-            ?.takeIf { it.isNotBlank() }
-            ?: config.bootstrapToken?.takeIf { it.isNotBlank() }
-            ?: config.deviceToken?.takeIf { it.isNotBlank() }
+        val signatureToken = config.preferredAuthToken()
         val signed = OpenClawGatewayCrypto.signConnectChallenge(
             context = context,
             clientId = ANDROID_GATEWAY_CLIENT_ID,

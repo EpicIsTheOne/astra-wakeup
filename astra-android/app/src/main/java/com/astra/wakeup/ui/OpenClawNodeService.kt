@@ -130,7 +130,7 @@ class OpenClawNodeService : Service() {
     private fun sendConnectFrame(webSocket: WebSocket, payload: JSONObject?) {
         val nonce = payload?.optString("nonce").orEmpty()
         val config = OpenClawGatewayConfig.fromContext(this)
-        val signatureToken = config.gatewayToken ?: config.bootstrapToken ?: config.deviceToken
+        val signatureToken = config.preferredAuthToken()
         val signed = OpenClawGatewayCrypto.signConnectChallenge(
             context = this,
             clientId = NODE_CLIENT_ID,
@@ -168,7 +168,7 @@ class OpenClawNodeService : Service() {
             put("userAgent", "astra-android/0.3.0-node")
         }
 
-        buildAuthPayload(config)?.let { params.put("auth", it) }
+        config.effectiveAuthPayload()?.let { params.put("auth", it) }
         signed?.let {
             params.put("device", JSONObject().apply {
                 put("id", it.deviceId)
@@ -228,14 +228,6 @@ class OpenClawNodeService : Service() {
         Handler(mainLooper).postDelayed({
             if (!shuttingDown) connect()
         }, delayMs)
-    }
-
-    private fun buildAuthPayload(config: OpenClawGatewayConfig): JSONObject? {
-        val auth = JSONObject()
-        config.gatewayToken?.takeIf { it.isNotBlank() }?.let { auth.put("token", it) }
-        config.bootstrapToken?.takeIf { it.isNotBlank() }?.let { auth.put("bootstrapToken", it) }
-        config.deviceToken?.takeIf { it.isNotBlank() }?.let { auth.put("deviceToken", it) }
-        return auth.takeIf { it.length() > 0 }
     }
 
     private fun createNotificationChannel() {

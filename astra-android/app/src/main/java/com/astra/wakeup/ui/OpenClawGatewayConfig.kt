@@ -18,6 +18,23 @@ data class OpenClawGatewayConfig(
     val insecureLocalAuthAllowed: Boolean = false,
     val sessionKey: String = "main"
 ) {
+    fun preferredAuthToken(): String? {
+        return deviceToken?.takeIf { it.isNotBlank() }
+            ?: bootstrapToken?.takeIf { it.isNotBlank() }
+            ?: gatewayToken?.takeIf { it.isNotBlank() }
+    }
+
+    fun effectiveAuthPayload(): org.json.JSONObject? {
+        val auth = org.json.JSONObject()
+        deviceToken?.takeIf { it.isNotBlank() }?.let { auth.put("deviceToken", it) }
+        if (!auth.has("deviceToken")) {
+            bootstrapToken?.takeIf { it.isNotBlank() }?.let { auth.put("bootstrapToken", it) }
+        }
+        if (!auth.has("deviceToken") && !auth.has("bootstrapToken")) {
+            gatewayToken?.takeIf { it.isNotBlank() }?.let { auth.put("token", it) }
+        }
+        return auth.takeIf { it.length() > 0 }
+    }
     companion object {
         fun fromContext(context: Context): OpenClawGatewayConfig {
             runCatching { OpenClawGatewayAuthStore.ensureScaffold(context) }
