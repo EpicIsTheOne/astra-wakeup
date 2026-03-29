@@ -130,7 +130,7 @@ class OpenClawNodeService : Service() {
     private fun sendConnectFrame(webSocket: WebSocket, payload: JSONObject?) {
         val nonce = payload?.optString("nonce").orEmpty()
         val config = OpenClawGatewayConfig.fromContext(this)
-        val signatureToken = config.preferredAuthToken()
+        val resolvedAuth = config.resolvedAuth()
         val signed = OpenClawGatewayCrypto.signConnectChallenge(
             context = this,
             clientId = NODE_CLIENT_ID,
@@ -140,7 +140,7 @@ class OpenClawNodeService : Service() {
             nonce = nonce,
             platform = "android",
             deviceFamily = Build.MODEL ?: "android",
-            signatureToken = signatureToken
+            signatureToken = resolvedAuth.signatureToken
         ).getOrNull()
 
         val params = JSONObject().apply {
@@ -168,7 +168,7 @@ class OpenClawNodeService : Service() {
             put("userAgent", "astra-android/0.3.0-node")
         }
 
-        config.effectiveAuthPayload()?.let { params.put("auth", it) }
+        resolvedAuth.payload?.let { params.put("auth", it) }
         signed?.let {
             params.put("device", JSONObject().apply {
                 put("id", it.deviceId)

@@ -289,6 +289,7 @@ class OpenClawGatewayTransport(
 
     private fun buildConnectFrame(context: Context?, config: OpenClawGatewayConfig, nonce: String): Result<JSONObject> {
         return runCatching {
+            val resolvedAuth = config.resolvedAuth()
             val params = JSONObject().apply {
                 put("minProtocol", GATEWAY_PROTOCOL_VERSION)
                 put("maxProtocol", GATEWAY_PROTOCOL_VERSION)
@@ -309,9 +310,9 @@ class OpenClawGatewayTransport(
                 put("userAgent", "astra-android/0.2.0")
             }
 
-            config.effectiveAuthPayload()?.let { params.put("auth", it) }
+            resolvedAuth.payload?.let { params.put("auth", it) }
             context?.let {
-                buildDevicePayload(it, config, nonce)?.let { device -> params.put("device", device) }
+                buildDevicePayload(it, resolvedAuth, nonce)?.let { device -> params.put("device", device) }
             }
 
             JSONObject().apply {
@@ -323,8 +324,8 @@ class OpenClawGatewayTransport(
         }
     }
 
-    private fun buildDevicePayload(context: Context, config: OpenClawGatewayConfig, nonce: String): JSONObject? {
-        val signatureToken = config.preferredAuthToken()
+    private fun buildDevicePayload(context: Context, resolvedAuth: GatewayResolvedAuth, nonce: String): JSONObject? {
+        val signatureToken = resolvedAuth.signatureToken
         val signed = OpenClawGatewayCrypto.signConnectChallenge(
             context = context,
             clientId = ANDROID_GATEWAY_CLIENT_ID,

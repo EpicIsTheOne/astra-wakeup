@@ -716,6 +716,7 @@ class MainActivity : AppCompatActivity() {
             saveMainSettings()
             val apiUrl = etApiUrl.text.toString().trim()
             val gatewayToken = etGatewayToken.text.toString().trim()
+            val config = OpenClawGatewayConfig.fromContext(this)
 
             if (apiUrl.isBlank()) {
                 setConnectedState(false)
@@ -730,13 +731,13 @@ class MainActivity : AppCompatActivity() {
                 return
             }
 
-            if (gatewayToken.isBlank()) {
+            if (config.authMode() == GatewayAuthMode.NONE) {
                 setConnectedState(false)
                 refreshSecondaryCards()
                 applyConnectionVisualState(
-                    title = "Add your gateway token",
-                    details = "Enter the shared gateway token for this OpenClaw instance, then tap Connect this phone.",
-                    banner = "Gateway token is required for the supported flow right now.",
+                    title = if (gatewayToken.isBlank()) "Add your gateway token" else "Add gateway auth",
+                    details = "Enter a shared gateway token or bootstrap token, or reconnect with an already paired device token.",
+                    banner = "Gateway auth is required before this phone can connect.",
                     bannerBackground = "#7C2D12",
                     bannerText = "#FFEDD5"
                 )

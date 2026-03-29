@@ -5,6 +5,19 @@ import java.util.UUID
 
 private const val ASTRA_PREFS = "astra"
 
+enum class GatewayAuthMode {
+    NONE,
+    SHARED_TOKEN,
+    BOOTSTRAP,
+    DEVICE_TOKEN
+}
+
+data class GatewayResolvedAuth(
+    val mode: GatewayAuthMode,
+    val payload: org.json.JSONObject?,
+    val signatureToken: String?
+)
+
 /**
  * Minimal persisted config scaffold for direct Gateway access.
  * This intentionally reuses the old api_url field so existing installs keep working.
@@ -18,23 +31,44 @@ data class OpenClawGatewayConfig(
     val insecureLocalAuthAllowed: Boolean = false,
     val sessionKey: String = "main"
 ) {
-    fun preferredAuthToken(): String? {
-        return deviceToken?.takeIf { it.isNotBlank() }
-            ?: bootstrapToken?.takeIf { it.isNotBlank() }
-            ?: gatewayToken?.takeIf { it.isNotBlank() }
+    fun resolvedAuth(): GatewayResolvedAuth {
+        deviceToken?.takeIf { it.isNotBlank() }?.let { token ->
+            return GatewayResolvedAuth(
+                mode = GatewayAuthMode.DEVICE_TOKEN,
+                payload = org.json.JSONObject().put("deviceToken", token),
+                signatureToken = token
+            )
+        }
+
+        bootstrapToken?.takeIf { it.isNotBlank() }?.let { token ->
+            return GatewayResolvedAuth(
+                mode = GatewayAuthMode.BOOTSTRAP,
+                payload = org.json.JSONObject().put("bootstrapToken", token),
+                signatureToken = token
+            )
+        }
+
+        gatewayToken?.takeIf { it.isNotBlank() }?.let { token ->
+            return GatewayResolvedAuth(
+                mode = GatewayAuthMode.SHARED_TOKEN,
+                payload = org.json.JSONObject().put("token", token),
+                signatureToken = token
+            )
+        }
+
+        return GatewayResolvedAuth(
+            mode = GatewayAuthMode.NONE,
+            payload = null,
+            signatureToken = null
+        )
     }
 
-    fun effectiveAuthPayload(): org.json.JSONObject? {
-        val auth = org.json.JSONObject()
-        deviceToken?.takeIf { it.isNotBlank() }?.let { auth.put("deviceToken", it) }
-        if (!auth.has("deviceToken")) {
-            bootstrapToken?.takeIf { it.isNotBlank() }?.let { auth.put("bootstrapToken", it) }
-        }
-        if (!auth.has("deviceToken") && !auth.has("bootstrapToken")) {
-            gatewayToken?.takeIf { it.isNotBlank() }?.let { auth.put("token", it) }
-        }
-        return auth.takeIf { it.length() > 0 }
-    }
+    fun authMode(): GatewayAuthMode = resolvedAuth().mode
+
+    fun preferredAuthToken(): String? = resolvedAuth().signatureToken
+
+    fun effectiveAuthPayload(): org.json.JSONObject? = resolvedAuth().payload
+
     companion object {
         fun fromContext(context: Context): OpenClawGatewayConfig {
             runCatching { OpenClawGatewayAuthStore.ensureScaffold(context) }
@@ -111,11 +145,14 @@ object OpenClawGatewayAuthStore {
         if (!prefs.contains("gateway_session_key")) {
             prefs.edit().putString("gateway_session_key", "main").apply()
         }
+
+        migrateLegacyAuthState(prefs)
     }
 
     fun persistHelloAuth(context: Context, helloPayload: org.json.JSONObject) {
         val auth = helloPayload.optJSONObject("auth") ?: return
-        val editor = context.getSharedPreferences(ASTRA_PREFS, Context.MODE_PRIVATE).edit()
+        val prefs = context.getSharedPreferences(ASTRA_PREFS, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
         editor.putString("gateway_last_auth_json", auth.toString())
         auth.optString("deviceToken").takeIf { it.isNotBlank() }?.let {
             editor.putString("gateway_device_token", it)
@@ -141,14 +178,16 @@ object OpenClawGatewayAuthStore {
             editor.putString("gateway_last_events", it.toString())
         }
         editor.apply()
+        migrateLegacyAuthState(prefs)
     }
 
     fun clearDeviceToken(context: Context) {
-        context.getSharedPreferences(ASTRA_PREFS, Context.MODE_PRIVATE)
-            .edit()
+        val prefs = context.getSharedPreferences(ASTRA_PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
             .remove("gateway_device_token")
             .remove("gateway_device_token_issued_at")
             .apply()
+        migrateLegacyAuthState(prefs)
     }
 
     fun clearAllGatewayAuth(context: Context) {
@@ -160,6 +199,10 @@ object OpenClawGatewayAuthStore {
             .remove("gateway_device_token_issued_at")
             .remove("gateway_last_role")
             .remove("gateway_last_scopes")
+            .remove("gateway_last_auth_json")
+            .remove("gateway_last_methods")
+            .remove("gateway_last_events")
+            .remove("gateway_server_version")
             .apply()
     }
 
@@ -170,6 +213,21 @@ object OpenClawGatewayAuthStore {
         val hasDeviceToken = !prefs.getString("gateway_device_token", null).isNullOrBlank()
         val role = prefs.getString("gateway_last_role", null).orEmpty()
         val lastAuth = prefs.getString("gateway_last_auth_json", null).orEmpty().take(180)
-        return "shared=$hasSharedToken bootstrap=$hasBootstrapToken device=$hasDeviceToken role=${role.ifBlank { "?" }} lastAuth=${lastAuth.ifBlank { "-" }}"
+        val mode = currentAuthMode(prefs).name.lowercase()
+        return "mode=$mode shared=$hasSharedToken bootstrap=$hasBootstrapToken device=$hasDeviceToken role=${role.ifBlank { "?" }} lastAuth=${lastAuth.ifBlank { "-" }}"
+    }
+
+    private fun migrateLegacyAuthState(prefs: android.content.SharedPreferences) {
+        val mode = currentAuthMode(prefs)
+        prefs.edit().putString("gateway_auth_mode", mode.name).apply()
+    }
+
+    private fun currentAuthMode(prefs: android.content.SharedPreferences): GatewayAuthMode {
+        return when {
+            !prefs.getString("gateway_device_token", null).isNullOrBlank() -> GatewayAuthMode.DEVICE_TOKEN
+            !prefs.getString("gateway_bootstrap_token", null).isNullOrBlank() -> GatewayAuthMode.BOOTSTRAP
+            !prefs.getString("gateway_token", null).isNullOrBlank() -> GatewayAuthMode.SHARED_TOKEN
+            else -> GatewayAuthMode.NONE
+        }
     }
 }

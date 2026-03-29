@@ -19,7 +19,7 @@ object OpenClawGatewayDiagnostics {
             "pairing required" in lower || "PAIRING_REQUIRED" in message -> GatewayAuthIssue(
                 code = "PAIRING_REQUIRED",
                 summary = "waiting for approval",
-                guidance = "This phone asked to pair with OpenClaw. Ask Astra to approve the pending Android device request, then tap Connect again."
+                guidance = "OpenClaw wants a fresh device approval. If this phone was already paired, the cached device token was likely invalidated and needs an explicit re-pair or reset."
             )
             "device token mismatch" in lower || "AUTH_DEVICE_TOKEN_MISMATCH" in message -> GatewayAuthIssue(
                 code = "AUTH_DEVICE_TOKEN_MISMATCH",
