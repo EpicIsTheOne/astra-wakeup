@@ -10,6 +10,7 @@ import org.json.JSONObject
 class AstraLiveCallSocket(
     apiUrl: String,
     private val sessionId: String,
+    private val onOpen: (() -> Unit)? = null,
     private val onEvent: (type: String, data: JSONObject) -> Unit,
     private val onFailure: (String) -> Unit,
 ) {
@@ -21,7 +22,9 @@ class AstraLiveCallSocket(
     fun connect() {
         intentionallyClosed = false
         socket = client.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) = Unit
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                onOpen?.invoke()
+            }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val json = runCatching { JSONObject(text) }.getOrNull() ?: return

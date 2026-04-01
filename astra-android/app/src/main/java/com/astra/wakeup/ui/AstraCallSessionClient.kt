@@ -21,6 +21,12 @@ data class AstraCallStartResult(
     val debug: String? = null,
 )
 
+data class AstraCallSessionLookupResult(
+    val ok: Boolean,
+    val session: AstraCallSession? = null,
+    val error: String? = null,
+)
+
 object AstraCallSessionClient {
     private val httpClient = OkHttpClient.Builder().retryOnConnectionFailure(true).build()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -96,6 +102,37 @@ object AstraCallSessionClient {
                 error = it.message ?: "network error",
                 debug = "apiUrl=$apiUrl | base=$base | url=$url | exception=${it::class.java.simpleName}: ${it.message}"
             )
+        }
+    }
+
+    fun getCallSession(apiUrl: String, sessionId: String): AstraCallSessionLookupResult {
+        val base = commandCenterBase(apiUrl)
+        if (base.isBlank() || sessionId.isBlank()) {
+            return AstraCallSessionLookupResult(false, error = "Missing call session lookup inputs")
+        }
+        val request = Request.Builder()
+            .url("$base/api/call/$sessionId")
+            .get()
+            .build()
+        return runCatching {
+            httpClient.newCall(request).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                val json = runCatching { JSONObject(text) }.getOrElse { JSONObject() }
+                if (!response.isSuccessful) {
+                    return AstraCallSessionLookupResult(false, error = json.optString("error").ifBlank { "HTTP ${response.code}" })
+                }
+                val session = json.optJSONObject("session") ?: JSONObject()
+                AstraCallSessionLookupResult(
+                    ok = true,
+                    session = AstraCallSession(
+                        id = session.optString("id"),
+                        state = session.optString("state").ifBlank { "ready" },
+                        agent = session.optString("agent").ifBlank { "orchestrator" },
+                    ),
+                )
+            }
+        }.getOrElse {
+            AstraCallSessionLookupResult(false, error = it.message ?: "network error")
         }
     }
 

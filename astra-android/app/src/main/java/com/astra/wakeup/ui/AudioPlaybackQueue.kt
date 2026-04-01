@@ -24,6 +24,8 @@ class AudioPlaybackQueue(
     @Volatile private var activeSampleRateHz: Int = defaultSampleRateHz
     @Volatile private var playbackActive = false
     @Volatile private var idleSignalToken = 0L
+    @Volatile private var queuedBytes = 0
+    @Volatile private var lastChunkFinishedAtMs = 0L
 
     fun start() {
         if (running) return
@@ -42,6 +44,8 @@ class AudioPlaybackQueue(
                     if (chunk.bytes.isNotEmpty()) {
                         setPlaybackActive(true)
                         audioTrack?.write(chunk.bytes, 0, chunk.bytes.size)
+                        queuedBytes = (queuedBytes - chunk.bytes.size).coerceAtLeast(0)
+                        lastChunkFinishedAtMs = System.currentTimeMillis()
                         scheduleIdleSignal(chunk)
                     }
                 }
@@ -60,12 +64,15 @@ class AudioPlaybackQueue(
         if (!running) return
         val decoded = runCatching { Base64.decode(base64, Base64.DEFAULT) }.getOrNull() ?: return
         val sampleRate = parseSampleRateFromMimeType(mimeType) ?: defaultSampleRateHz
+        queuedBytes += decoded.size
         queue.offer(AudioChunk(decoded, sampleRate))
     }
 
     fun interruptPlayback() {
         idleSignalToken += 1
         queue.clear()
+        queuedBytes = 0
+        lastChunkFinishedAtMs = 0L
         runCatching { audioTrack?.pause() }
         runCatching { audioTrack?.flush() }
         runCatching { audioTrack?.play() }
@@ -78,6 +85,8 @@ class AudioPlaybackQueue(
         worker?.interrupt()
         worker = null
         queue.clear()
+        queuedBytes = 0
+        lastChunkFinishedAtMs = 0L
         setPlaybackActive(false)
         releaseTrack()
     }
@@ -127,13 +136,18 @@ class AudioPlaybackQueue(
         val durationMs = ((chunk.bytes.size / 2.0) / chunk.sampleRateHz.toDouble() * 1000.0).toLong().coerceAtLeast(80L)
         Thread {
             try {
-                Thread.sleep((durationMs + 120L).coerceAtMost(1500L))
+                Thread.sleep((durationMs + 140L).coerceAtMost(1800L))
             } catch (_: InterruptedException) {
                 return@Thread
             }
             if (!running) return@Thread
             if (token != idleSignalToken) return@Thread
             if (queue.isNotEmpty()) return@Thread
+            if (queuedBytes > 0) return@Thread
+            val silenceElapsedMs = System.currentTimeMillis() - lastChunkFinishedAtMs
+            if (silenceElapsedMs < 120L) return@Thread
+            val playState = runCatching { audioTrack?.playState }.getOrNull()
+            if (playState != null && playState != AudioTrack.PLAYSTATE_PLAYING) return@Thread
             setPlaybackActive(false)
             onPlaybackIdle?.invoke()
         }.apply {
