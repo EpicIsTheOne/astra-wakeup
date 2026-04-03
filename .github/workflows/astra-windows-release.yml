@@ -1,0 +1,108 @@
+name: Release Astra Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Git tag to publish (clean format: v0.3.0)'
+        required: true
+        default: 'v0.3.0'
+      release_name:
+        description: 'Release title'
+        required: true
+        default: ''
+      prerelease:
+        description: 'Publish as prerelease'
+        required: true
+        type: boolean
+        default: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      version_name: ${{ steps.version_meta.outputs.version_name }}
+      release_title: ${{ steps.version_meta.outputs.release_title }}
+    defaults:
+      run:
+        working-directory: astra-windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: astra-windows/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Derive release metadata
+        id: version_meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_NAME="${INPUT_TAG#v}"
+          if [ -n "${INPUT_NAME:-}" ]; then
+            RELEASE_TITLE="$INPUT_NAME"
+          else
+            RELEASE_TITLE="Astra Windows v${VERSION_NAME}"
+          fi
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_title=$RELEASE_TITLE" >> "$GITHUB_OUTPUT"
+        env:
+          INPUT_TAG: ${{ inputs.release_tag }}
+          INPUT_NAME: ${{ inputs.release_name }}
+
+      - name: Set package version
+        shell: bash
+        run: |
+          node -e "const fs=require('fs'); const p='./package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); j.version='${{ steps.version_meta.outputs.version_name }}'; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');"
+
+      - name: Build Windows release packages
+        run: npm run dist:win
+
+      - name: Upload Windows release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: astra-windows-release
+          path: |
+            astra-windows/dist/*.exe
+            astra-windows/dist/*.blockmap
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-windows-release:
+    needs: build-windows-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Windows release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: astra-windows-release
+          path: dist
+
+      - name: Publish Windows GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          name: ${{ needs.build-windows-release.outputs.release_title }}
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: true
+          files: |
+            dist/*.exe
+            dist/*.blockmap

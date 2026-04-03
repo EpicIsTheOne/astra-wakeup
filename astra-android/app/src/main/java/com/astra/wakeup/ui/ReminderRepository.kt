@@ -8,8 +8,11 @@ object ReminderRepository {
     private const val KEY_REMINDERS = "items"
     private const val KEY_TASKS = "task_board"
 
+    private fun prefs(context: Context) = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+    private fun apiUrl(context: Context): String = context.getSharedPreferences("astra", Context.MODE_PRIVATE).getString("api_url", "") ?: ""
+
     fun listReminders(context: Context): List<ReminderItem> {
-        val raw = context.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY_REMINDERS, "[]") ?: "[]"
+        val raw = prefs(context).getString(KEY_REMINDERS, "[]") ?: "[]"
         return runCatching {
             val arr = JSONArray(raw)
             buildList {
@@ -19,7 +22,7 @@ object ReminderRepository {
     }
 
     fun listTasks(context: Context): List<TaskBoardItem> {
-        val raw = context.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY_TASKS, "[]") ?: "[]"
+        val raw = prefs(context).getString(KEY_TASKS, "[]") ?: "[]"
         return runCatching {
             val arr = JSONArray(raw)
             buildList {
@@ -68,12 +71,62 @@ object ReminderRepository {
     fun saveReminders(context: Context, reminders: List<ReminderItem>) {
         val arr = JSONArray()
         reminders.sortedBy { it.scheduledTimeMillis }.forEach { arr.put(it.toJson()) }
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().putString(KEY_REMINDERS, arr.toString()).apply()
+        prefs(context).edit().putString(KEY_REMINDERS, arr.toString()).apply()
     }
 
     fun saveTasks(context: Context, tasks: List<TaskBoardItem>) {
         val arr = JSONArray()
         tasks.forEach { arr.put(it.toJson()) }
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().putString(KEY_TASKS, arr.toString()).apply()
+        prefs(context).edit().putString(KEY_TASKS, arr.toString()).apply()
+    }
+
+    fun applySnapshot(context: Context, snapshot: OrganizerSnapshot) {
+        saveReminders(context, snapshot.reminders)
+        saveTasks(context, snapshot.tasks)
+        ReminderScheduler.rescheduleAll(context)
+    }
+
+    fun syncFromBackend(context: Context): Result<OrganizerSnapshot> {
+        val url = apiUrl(context).trim()
+        if (url.isBlank()) return Result.failure(IllegalStateException("Missing API URL"))
+        val result = ApiOrganizerClient.fetch(url)
+        result.onSuccess { applySnapshot(context, it) }
+        return result
+    }
+
+    fun upsertReminderRemote(context: Context, item: ReminderItem): Result<OrganizerSnapshot> {
+        upsertReminder(context, item)
+        val url = apiUrl(context).trim()
+        if (url.isBlank()) return Result.failure(IllegalStateException("Missing API URL"))
+        val result = ApiOrganizerClient.upsertReminder(url, item)
+        result.onSuccess { applySnapshot(context, it) }
+        return result
+    }
+
+    fun deleteReminderRemote(context: Context, id: String): Result<OrganizerSnapshot> {
+        deleteReminder(context, id)
+        val url = apiUrl(context).trim()
+        if (url.isBlank()) return Result.failure(IllegalStateException("Missing API URL"))
+        val result = ApiOrganizerClient.deleteReminder(url, id)
+        result.onSuccess { applySnapshot(context, it) }
+        return result
+    }
+
+    fun upsertTaskRemote(context: Context, item: TaskBoardItem): Result<OrganizerSnapshot> {
+        upsertTask(context, item)
+        val url = apiUrl(context).trim()
+        if (url.isBlank()) return Result.failure(IllegalStateException("Missing API URL"))
+        val result = ApiOrganizerClient.upsertTask(url, item)
+        result.onSuccess { applySnapshot(context, it) }
+        return result
+    }
+
+    fun deleteTaskRemote(context: Context, id: String): Result<OrganizerSnapshot> {
+        deleteTask(context, id)
+        val url = apiUrl(context).trim()
+        if (url.isBlank()) return Result.failure(IllegalStateException("Missing API URL"))
+        val result = ApiOrganizerClient.deleteTask(url, id)
+        result.onSuccess { applySnapshot(context, it) }
+        return result
     }
 }

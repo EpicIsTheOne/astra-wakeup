@@ -28,7 +28,6 @@ class RemindersActivity : AppCompatActivity() {
         val spImportance = findViewById<Spinner>(R.id.spReminderImportance)
         val spAnnoyance = findViewById<Spinner>(R.id.spReminderAnnoyance)
         val spRepeat = findViewById<Spinner>(R.id.spReminderRepeat)
-        val spTask = findViewById<Spinner>(R.id.spTaskLink)
         listOf(spImportance, spAnnoyance, spRepeat).forEach { it.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, when (it.id) {
             R.id.spReminderImportance -> listOf("Normal", "Important", "Critical")
             R.id.spReminderAnnoyance -> listOf("Gentle", "Pushy", "Chaotic")
@@ -40,20 +39,36 @@ class RemindersActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnCancelEditReminder).setOnClickListener { clearReminderForm() }
         findViewById<Button>(R.id.btnToggleManageMode).setOnClickListener {
             manageMode = !manageMode
-            refresh()
+            refreshFromCache()
         }
         findViewById<Button>(R.id.btnSaveTaskBoardItem).setOnClickListener { saveTask() }
         findViewById<Button>(R.id.btnClearTaskBoardItem).setOnClickListener { clearTaskForm() }
 
-        refresh()
+        refreshFromCache()
+        syncFromBackend(showToastOnFailure = false)
     }
 
     override fun onResume() {
         super.onResume()
-        refresh()
+        refreshFromCache()
+        syncFromBackend(showToastOnFailure = false)
     }
 
-    private fun refresh() {
+    private fun syncFromBackend(showToastOnFailure: Boolean = true) {
+        Thread {
+            val result = ReminderRepository.syncFromBackend(this)
+            runOnUiThread {
+                result.onSuccess {
+                    refreshFromCache()
+                }.onFailure { err ->
+                    refreshFromCache()
+                    if (showToastOnFailure) toast("Sync failed: ${err.message ?: "network error"}")
+                }
+            }
+        }.start()
+    }
+
+    private fun refreshFromCache() {
         findViewById<TextView>(R.id.tvReminderPickedTime).text = formatTimestamp(pickedTimeMillis)
         findViewById<Button>(R.id.btnToggleManageMode).text = if (manageMode) "Leave manage mode" else "Manage all reminders"
         val tasks = ReminderRepository.listTasks(this)
@@ -73,7 +88,7 @@ class RemindersActivity : AppCompatActivity() {
                     set(Calendar.MILLISECOND, 0)
                 }
                 pickedTimeMillis = picked.timeInMillis
-                refresh()
+                refreshFromCache()
             }, calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE), false).show()
         }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
     }
@@ -100,18 +115,26 @@ class RemindersActivity : AppCompatActivity() {
             followUpState = "scheduled",
             linkedTaskId = tasks.getOrNull(taskSelection)?.id
         )
-        ReminderRepository.upsertReminder(this, item)
-        item.linkedTaskId?.let { taskId ->
-            ReminderRepository.getTask(this, taskId)?.let { task ->
-                ReminderRepository.upsertTask(this, task.copy(linkedReminderId = item.id))
+        Thread {
+            val result = ReminderRepository.upsertReminderRemote(this, item)
+            if (item.linkedTaskId != null) {
+                ReminderRepository.getTask(this, item.linkedTaskId)?.let { task ->
+                    ReminderRepository.upsertTaskRemote(this, task.copy(linkedReminderId = item.id))
+                }
             }
-        }
-        clearReminderForm()
-        refresh()
-        toast("Reminder saved")
+            runOnUiThread {
+                clearReminderForm(refreshUi = false)
+                refreshFromCache()
+                result.onSuccess {
+                    toast("Reminder saved")
+                }.onFailure { err ->
+                    toast("Reminder saved locally, sync failed: ${err.message ?: "network error"}")
+                }
+            }
+        }.start()
     }
 
-    private fun clearReminderForm() {
+    private fun clearReminderForm(refreshUi: Boolean = true) {
         editingReminderId = null
         findViewById<EditText>(R.id.etReminderTitle).setText("")
         findViewById<Spinner>(R.id.spReminderImportance).setSelection(1)
@@ -122,7 +145,7 @@ class RemindersActivity : AppCompatActivity() {
         findViewById<CheckBox>(R.id.cbReminderEnabled).isChecked = true
         pickedTimeMillis = System.currentTimeMillis() + 60 * 60 * 1000L
         findViewById<TextView>(R.id.tvReminderEditorTitle).text = "Create reminder"
-        refresh()
+        if (refreshUi) refreshFromCache()
     }
 
     private fun renderReminders() {
@@ -153,9 +176,44 @@ class RemindersActivity : AppCompatActivity() {
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.HORIZONTAL
                     val edit = Button(context).apply { text = "Edit"; setOnClickListener { loadReminder(item) } }
-                    val toggle = Button(context).apply { text = if (item.enabled) "Disable" else "Enable"; setOnClickListener { ReminderRepository.upsertReminder(context, item.copy(enabled = !item.enabled)); refresh() } }
-                    val later = Button(context).apply { text = "Later"; visibility = if (manageMode) View.VISIBLE else View.GONE; setOnClickListener { ReminderRepository.upsertReminder(context, item.copy(scheduledTimeMillis = ReminderScheduler.computeLaterTime(item), snoozeCount = item.snoozeCount + 1)); refresh() } }
-                    val delete = Button(context).apply { text = "Delete"; visibility = if (manageMode) View.VISIBLE else View.GONE; setOnClickListener { ReminderRepository.deleteReminder(context, item.id); refresh() } }
+                    val toggle = Button(context).apply {
+                        text = if (item.enabled) "Disable" else "Enable"
+                        setOnClickListener {
+                            Thread {
+                                val result = ReminderRepository.upsertReminderRemote(context, item.copy(enabled = !item.enabled))
+                                post {
+                                    refreshFromCache()
+                                    result.onFailure { toast("Reminder updated locally, sync failed") }
+                                }
+                            }.start()
+                        }
+                    }
+                    val later = Button(context).apply {
+                        text = "Later"
+                        visibility = if (manageMode) View.VISIBLE else View.GONE
+                        setOnClickListener {
+                            Thread {
+                                val result = ReminderRepository.upsertReminderRemote(context, item.copy(scheduledTimeMillis = ReminderScheduler.computeLaterTime(item), snoozeCount = item.snoozeCount + 1))
+                                post {
+                                    refreshFromCache()
+                                    result.onFailure { toast("Reminder snoozed locally, sync failed") }
+                                }
+                            }.start()
+                        }
+                    }
+                    val delete = Button(context).apply {
+                        text = "Delete"
+                        visibility = if (manageMode) View.VISIBLE else View.GONE
+                        setOnClickListener {
+                            Thread {
+                                val result = ReminderRepository.deleteReminderRemote(context, item.id)
+                                post {
+                                    refreshFromCache()
+                                    result.onFailure { toast("Reminder deleted locally, sync failed") }
+                                }
+                            }.start()
+                        }
+                    }
                     addView(edit)
                     addView(toggle)
                     addView(later)
@@ -176,7 +234,7 @@ class RemindersActivity : AppCompatActivity() {
         findViewById<CheckBox>(R.id.cbVerifyLater).isChecked = item.verifyLater
         findViewById<CheckBox>(R.id.cbReminderEnabled).isChecked = item.enabled
         pickedTimeMillis = item.scheduledTimeMillis
-        refresh()
+        refreshFromCache()
         val tasks = ReminderRepository.listTasks(this)
         findViewById<Spinner>(R.id.spTaskLink).setSelection((tasks.indexOfFirst { it.id == item.linkedTaskId }).takeIf { it >= 0 }?.plus(1) ?: 0)
     }
@@ -202,9 +260,32 @@ class RemindersActivity : AppCompatActivity() {
                 })
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    addView(Button(context).apply { text = if (task.done) "Undo" else "Done"; setOnClickListener { ReminderRepository.upsertTask(context, task.copy(done = !task.done, completedAtMillis = if (task.done) 0L else System.currentTimeMillis())); refresh() } })
+                    addView(Button(context).apply {
+                        text = if (task.done) "Undo" else "Done"
+                        setOnClickListener {
+                            Thread {
+                                val updated = task.copy(done = !task.done, completedAtMillis = if (task.done) 0L else System.currentTimeMillis())
+                                val result = ReminderRepository.upsertTaskRemote(context, updated)
+                                post {
+                                    refreshFromCache()
+                                    result.onFailure { toast("Task updated locally, sync failed") }
+                                }
+                            }.start()
+                        }
+                    })
                     addView(Button(context).apply { text = "Edit"; setOnClickListener { loadTask(task) } })
-                    addView(Button(context).apply { text = "Delete"; setOnClickListener { ReminderRepository.deleteTask(context, task.id); refresh() } })
+                    addView(Button(context).apply {
+                        text = "Delete"
+                        setOnClickListener {
+                            Thread {
+                                val result = ReminderRepository.deleteTaskRemote(context, task.id)
+                                post {
+                                    refreshFromCache()
+                                    result.onFailure { toast("Task deleted locally, sync failed") }
+                                }
+                            }.start()
+                        }
+                    })
                 })
             })
             container.addView(View(this).apply { minimumHeight = 16 })
@@ -218,15 +299,24 @@ class RemindersActivity : AppCompatActivity() {
         val reminders = ReminderRepository.listReminders(this)
         val selection = findViewById<Spinner>(R.id.spTaskReminderLink).selectedItemPosition - 1
         val linkedReminderId = reminders.getOrNull(selection)?.id
-        ReminderRepository.upsertTask(this, TaskBoardItem(id = id, title = title, notes = findViewById<EditText>(R.id.etTaskBoardNotes).text.toString().trim(), linkedReminderId = linkedReminderId))
-        linkedReminderId?.let { reminderId ->
-            ReminderRepository.getReminder(this, reminderId)?.let { reminder ->
-                ReminderRepository.upsertReminder(this, reminder.copy(linkedTaskId = id))
+        val item = TaskBoardItem(id = id, title = title, notes = findViewById<EditText>(R.id.etTaskBoardNotes).text.toString().trim(), linkedReminderId = linkedReminderId)
+        Thread {
+            val result = ReminderRepository.upsertTaskRemote(this, item)
+            if (linkedReminderId != null) {
+                ReminderRepository.getReminder(this, linkedReminderId)?.let { reminder ->
+                    ReminderRepository.upsertReminderRemote(this, reminder.copy(linkedTaskId = id))
+                }
             }
-        }
-        clearTaskForm()
-        refresh()
-        toast("Task saved")
+            runOnUiThread {
+                clearTaskForm(refreshUi = false)
+                refreshFromCache()
+                result.onSuccess {
+                    toast("Task saved")
+                }.onFailure {
+                    toast("Task saved locally, sync failed")
+                }
+            }
+        }.start()
     }
 
     private fun loadTask(task: TaskBoardItem) {
@@ -239,11 +329,11 @@ class RemindersActivity : AppCompatActivity() {
         findViewById<Spinner>(R.id.spTaskReminderLink).setSelection((reminders.indexOfFirst { it.id == task.linkedReminderId }).takeIf { it >= 0 }?.plus(1) ?: 0)
     }
 
-    private fun clearTaskForm() {
+    private fun clearTaskForm(refreshUi: Boolean = true) {
         findViewById<TextView>(R.id.tvEditingTaskId).text = ""
         findViewById<EditText>(R.id.etTaskBoardTitle).setText("")
         findViewById<EditText>(R.id.etTaskBoardNotes).setText("")
-        refreshTaskReminderSpinner()
+        if (refreshUi) refreshTaskReminderSpinner()
     }
 
     private fun refreshTaskReminderSpinner() {

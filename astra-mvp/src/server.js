@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { execFileSync, spawn } from 'node:child_process';
 import express from 'express';
 import cron from 'node-cron';
@@ -11,10 +12,24 @@ import { openAiTts } from './tts/openai.js';
 import { elevenLabsTts } from './tts/elevenlabs.js';
 import { maybeMixWithSfx } from './audio.js';
 import { sendDiscordDmAudio } from './discord.js';
+import gameRoutes from './game/routes.js';
 
 const app = express();
+const basePath = cfg.basePath || '/';
 app.use(express.json());
-app.use(express.static('public'));
+
+if (basePath !== '/') {
+  app.use((req, res, next) => {
+    if (req.path === basePath) return res.redirect(`${basePath}/`);
+    return next();
+  });
+  app.use(`${basePath}/api/arcade`, gameRoutes);
+  app.use(basePath, express.static('public'));
+  app.get('/', (_req, res) => res.redirect(`${basePath}/`));
+} else {
+  app.use('/api/arcade', gameRoutes);
+  app.use(express.static('public'));
+}
 
 let state = loadState();
 let snoozeTimer = null;
@@ -96,6 +111,38 @@ function savePersonalMemory(mem) {
   const p = path.resolve('data/personal-memory.json');
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, JSON.stringify(mem, null, 2));
+}
+
+function loadOrganizerState() {
+  const p = path.resolve('data/shared-organizer.json');
+  try {
+    const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
+    return {
+      reminders: Array.isArray(parsed.reminders) ? parsed.reminders : [],
+      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : []
+    };
+  } catch {
+    return { reminders: [], tasks: [] };
+  }
+}
+
+function saveOrganizerState(data) {
+  const p = path.resolve('data/shared-organizer.json');
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify({
+    reminders: Array.isArray(data.reminders) ? data.reminders : [],
+    tasks: Array.isArray(data.tasks) ? data.tasks : []
+  }, null, 2));
+}
+
+function sortOrganizerState(data) {
+  return {
+    reminders: [...(data.reminders || [])].sort((a, b) => Number(a.scheduledTimeMillis || 0) - Number(b.scheduledTimeMillis || 0)),
+    tasks: [...(data.tasks || [])].sort((a, b) => {
+      if (Boolean(a.done) !== Boolean(b.done)) return a.done ? 1 : -1;
+      return Number(a.createdAtMillis || 0) - Number(b.createdAtMillis || 0);
+    })
+  };
 }
 
 function pickMission() {
@@ -505,6 +552,95 @@ app.delete('/api/astra/memory', (req, res) => {
   }
 
   return res.status(400).json({ ok: false, error: 'Provide valid index or all=true' });
+});
+
+app.get('/api/astra/organizer', (_req, res) => {
+  const data = sortOrganizerState(loadOrganizerState());
+  res.json({ ok: true, ...data });
+});
+
+app.put('/api/astra/organizer', (req, res) => {
+  const reminders = Array.isArray(req.body?.reminders) ? req.body.reminders : [];
+  const tasks = Array.isArray(req.body?.tasks) ? req.body.tasks : [];
+  const data = sortOrganizerState({ reminders, tasks });
+  saveOrganizerState(data);
+  res.json({ ok: true, ...data });
+});
+
+app.post('/api/astra/organizer/reminders', (req, res) => {
+  const item = req.body || {};
+  const title = String(item.title || '').trim().slice(0, 220);
+  if (!title) return res.status(400).json({ ok: false, error: 'Reminder title required' });
+
+  const data = loadOrganizerState();
+  const normalized = {
+    id: String(item.id || crypto.randomUUID()),
+    title,
+    scheduledTimeMillis: Number(item.scheduledTimeMillis || Date.now()),
+    importance: Math.max(1, Math.min(3, Number(item.importance || 2))),
+    annoyanceLevel: Math.max(1, Math.min(3, Number(item.annoyanceLevel || 2))),
+    verifyLater: Boolean(item.verifyLater),
+    repeatRule: ['once', 'daily', 'weekly'].includes(String(item.repeatRule)) ? String(item.repeatRule) : 'once',
+    enabled: item.enabled !== false,
+    snoozeCount: Math.max(0, Number(item.snoozeCount || 0)),
+    followUpState: String(item.followUpState || 'scheduled').slice(0, 64),
+    linkedTaskId: item.linkedTaskId ? String(item.linkedTaskId) : null,
+    createdAtMillis: Number(item.createdAtMillis || Date.now()),
+    lastTriggeredAtMillis: Number(item.lastTriggeredAtMillis || 0)
+  };
+  data.reminders = data.reminders.filter((entry) => entry.id !== normalized.id).concat(normalized);
+  if (normalized.linkedTaskId) {
+    data.tasks = data.tasks.map((task) => task.id === normalized.linkedTaskId ? { ...task, linkedReminderId: normalized.id } : task);
+  }
+  const sorted = sortOrganizerState(data);
+  saveOrganizerState(sorted);
+  res.json({ ok: true, reminder: normalized, ...sorted });
+});
+
+app.delete('/api/astra/organizer/reminders/:id', (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.status(400).json({ ok: false, error: 'Reminder id required' });
+  const data = loadOrganizerState();
+  data.reminders = data.reminders.filter((entry) => entry.id !== id);
+  data.tasks = data.tasks.map((task) => task.linkedReminderId === id ? { ...task, linkedReminderId: null } : task);
+  const sorted = sortOrganizerState(data);
+  saveOrganizerState(sorted);
+  res.json({ ok: true, ...sorted });
+});
+
+app.post('/api/astra/organizer/tasks', (req, res) => {
+  const item = req.body || {};
+  const title = String(item.title || '').trim().slice(0, 220);
+  if (!title) return res.status(400).json({ ok: false, error: 'Task title required' });
+
+  const data = loadOrganizerState();
+  const normalized = {
+    id: String(item.id || crypto.randomUUID()),
+    title,
+    notes: String(item.notes || '').slice(0, 2000),
+    done: Boolean(item.done),
+    linkedReminderId: item.linkedReminderId ? String(item.linkedReminderId) : null,
+    createdAtMillis: Number(item.createdAtMillis || Date.now()),
+    completedAtMillis: Number(item.completedAtMillis || 0)
+  };
+  data.tasks = data.tasks.filter((entry) => entry.id !== normalized.id).concat(normalized);
+  if (normalized.linkedReminderId) {
+    data.reminders = data.reminders.map((reminder) => reminder.id === normalized.linkedReminderId ? { ...reminder, linkedTaskId: normalized.id } : reminder);
+  }
+  const sorted = sortOrganizerState(data);
+  saveOrganizerState(sorted);
+  res.json({ ok: true, task: normalized, ...sorted });
+});
+
+app.delete('/api/astra/organizer/tasks/:id', (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.status(400).json({ ok: false, error: 'Task id required' });
+  const data = loadOrganizerState();
+  data.tasks = data.tasks.filter((entry) => entry.id !== id);
+  data.reminders = data.reminders.map((reminder) => reminder.linkedTaskId === id ? { ...reminder, linkedTaskId: null } : reminder);
+  const sorted = sortOrganizerState(data);
+  saveOrganizerState(sorted);
+  res.json({ ok: true, ...sorted });
 });
 
 app.post('/api/wakeup/fire', async (_req, res) => {

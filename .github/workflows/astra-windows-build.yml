@@ -1,0 +1,54 @@
+name: Build Astra Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'astra-windows/**'
+      - '.github/workflows/astra-windows-build.yml'
+  pull_request:
+    paths:
+      - 'astra-windows/**'
+      - '.github/workflows/astra-windows-build.yml'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-artifacts:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: astra-windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: astra-windows/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows packages
+        run: npm run dist:win
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: astra-windows-dist
+          path: |
+            astra-windows/dist/*.exe
+            astra-windows/dist/*.blockmap
+          if-no-files-found: error
+          retention-days: 14
