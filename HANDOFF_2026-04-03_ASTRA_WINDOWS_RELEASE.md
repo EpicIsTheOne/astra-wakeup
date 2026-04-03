@@ -68,6 +68,10 @@ Purpose:
 - publish a tagged Windows GitHub release
 - sets package version from the release tag
 - uploads `.exe` and `.blockmap`
+- supports both manual dispatch and automatic tag-push release flow
+
+Automatic trigger:
+- push tags matching `v*`
 
 ## Updater behavior
 The Windows app now:
@@ -103,19 +107,18 @@ This environment is Linux, so I did **not** pretend I locally produced a final W
 The correct final packaging validation path is the Windows GitHub Actions workflow (`windows-latest`) or a real Windows machine.
 
 ## Recommended next actions
-1. run **Build Astra Windows** workflow
-2. verify artifacts exist:
-   - NSIS installer `.exe`
-   - portable `.exe`
-   - optional `.blockmap`
-3. if green, run **Release Astra Windows** with a prerelease tag first
+1. normal development changes should rely on **Build Astra Windows** for CI artifact checks
+2. intentional releases should use a pushed version tag, e.g. `v0.3.1`
+3. verify release assets exist:
+   - Windows installer `.exe`
+   - `.blockmap`
 4. download and smoke-test on a real Windows box:
    - first launch
    - connect to `https://techexplore.us`
    - chat send/receive
    - reminders/task sync with Android
    - release-page / download-button behavior
-5. only after that, promote a non-prerelease Windows release
+5. only after that, promote a non-prerelease Windows release if desired
 
 ## Suggested first release
 - Tag: `v0.3.0`

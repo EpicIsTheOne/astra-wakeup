@@ -45,6 +45,47 @@ You can change this in-app.
 The desktop app now reads its installed version from Electron at runtime and checks GitHub releases for a **Windows-specific** installer asset.
 It does not silently self-update yet; it surfaces the correct release page / download artifact for the user.
 
+## Release process
+
+### Build only
+GitHub Actions workflow:
+- `Build Astra Windows`
+
+This runs on:
+- pushes affecting `astra-windows/**`
+- PRs affecting `astra-windows/**`
+- manual dispatch
+
+### Automatic release on tag push
+GitHub Actions workflow:
+- `Release Astra Windows`
+
+This now runs automatically when you push a version tag matching:
+- `v*`
+
+Example:
+```bash
+git tag v0.3.1
+git push origin v0.3.1
+```
+
+That workflow will:
+- derive app version from the tag
+- build Windows release artifacts
+- publish a GitHub prerelease by default for tag-triggered runs
+
+### Manual release
+You can still trigger `Release Astra Windows` manually with inputs for:
+- release tag
+- release title
+- prerelease flag
+
+### Recommended pattern
+- normal commits to `main` → build workflow only
+- intentional version tag push → release workflow
+
+This avoids turning every successful build into a public Windows release, which would be a little deranged.
+
 ## Shared organizer backend
 This desktop client expects these backend endpoints to exist:
 
