@@ -18,6 +18,7 @@ const state = {
     socket: null,
     mediaStream: null,
     audioContext: null,
+    inputAudioContext: null,
     processor: null,
     sourceNode: null,
     assistantAudioQueue: [],
@@ -212,6 +213,14 @@ function floatTo16BitPCM(float32Array) {
     out[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
   }
   return out.buffer;
+}
+
+function parseSampleRateFromMimeType(mimeType) {
+  const value = String(mimeType || '').toLowerCase().trim();
+  const match = value.match(/rate=(\d+)/);
+  const rate = match ? Number.parseInt(match[1], 10) : NaN;
+  if (!Number.isFinite(rate)) return 24000;
+  return Math.max(8000, Math.min(48000, rate));
 }
 
 function updateStatusText() {
@@ -557,8 +566,12 @@ function teardownCallRuntime() {
   state.call.socket = null;
   try { state.call.processor?.disconnect(); } catch {}
   try { state.call.sourceNode?.disconnect(); } catch {}
+  try { state.call.inputAudioContext?.close(); } catch {}
+  try { state.call.audioContext?.close(); } catch {}
   state.call.processor = null;
   state.call.sourceNode = null;
+  state.call.inputAudioContext = null;
+  state.call.audioContext = null;
   if (state.call.mediaStream) {
     state.call.mediaStream.getTracks().forEach((track) => track.stop());
   }
@@ -616,7 +629,8 @@ function handleCallEvent(type, data) {
     }
     case 'call:response.audio': {
       const chunk = String(data.pcm16Base64 || '').trim();
-      if (chunk) enqueueAssistantAudio(chunk);
+      const mimeType = String(data.mimeType || 'audio/pcm;rate=24000').trim();
+      if (chunk) enqueueAssistantAudio(chunk, mimeType);
       state.call.status = 'live 🎙️';
       break;
     }
@@ -654,10 +668,10 @@ async function startMicrophoneStreaming() {
       autoGainControl: true
     }
   });
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-  await audioContext.resume();
-  const source = audioContext.createMediaStreamSource(stream);
-  const processor = audioContext.createScriptProcessor(4096, 1, 1);
+  const inputAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  await inputAudioContext.resume();
+  const source = inputAudioContext.createMediaStreamSource(stream);
+  const processor = inputAudioContext.createScriptProcessor(4096, 1, 1);
   processor.onaudioprocess = (event) => {
     if (!state.call.active || !state.call.sessionId) return;
     const input = event.inputBuffer.getChannelData(0);
@@ -670,15 +684,15 @@ async function startMicrophoneStreaming() {
     }).catch(() => null);
   };
   source.connect(processor);
-  processor.connect(audioContext.destination);
+  processor.connect(inputAudioContext.destination);
   state.call.mediaStream = stream;
-  state.call.audioContext = audioContext;
+  state.call.inputAudioContext = inputAudioContext;
   state.call.sourceNode = source;
   state.call.processor = processor;
 }
 
-function enqueueAssistantAudio(base64) {
-  state.call.assistantAudioQueue.push(base64);
+function enqueueAssistantAudio(base64, mimeType = 'audio/pcm;rate=24000') {
+  state.call.assistantAudioQueue.push({ base64, sampleRate: parseSampleRateFromMimeType(mimeType) });
   if (!state.call.playing) playNextAssistantAudio();
 }
 
@@ -689,10 +703,11 @@ function playNextAssistantAudio() {
     return;
   }
   state.call.playing = true;
-  const ctx = state.call.audioContext || new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  const sampleRate = next.sampleRate || 24000;
+  const ctx = state.call.audioContext || new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
   state.call.audioContext = ctx;
-  const pcm = pcm16ToFloat32(base64ToArrayBuffer(next));
-  const buffer = ctx.createBuffer(1, pcm.length, 16000);
+  const pcm = pcm16ToFloat32(base64ToArrayBuffer(next.base64));
+  const buffer = ctx.createBuffer(1, pcm.length, sampleRate);
   buffer.copyToChannel(pcm, 0);
   const src = ctx.createBufferSource();
   src.buffer = buffer;
