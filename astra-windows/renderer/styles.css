@@ -175,6 +175,7 @@ label { display: flex; flex-direction: column; gap: 8px; color: var(--soft); }
   accent-color: var(--pink);
 }
 .settings-toggle-row { margin-top: 14px; }
+.stack-tight { display: flex; flex-direction: column; gap: 10px; }
 .actions-row { margin-top: 14px; }
 .subtle-note { margin-top: 12px; color: var(--muted); font-size: 0.95rem; }
 .view-tabs {

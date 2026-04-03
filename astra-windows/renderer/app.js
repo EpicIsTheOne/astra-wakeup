@@ -10,6 +10,15 @@ const state = {
   includePrereleases: localStorage.getItem('astra.includePrereleases') === 'true',
   currentVersion: APP_VERSION,
   appPlatform: 'unknown',
+  updater: {
+    phase: 'idle',
+    message: 'Updater idle',
+    progressPercent: 0,
+    downloadedVersion: null,
+    availableVersion: null,
+    error: null,
+    autoApply: true
+  },
   geminiConfig: null,
   call: {
     active: false,
@@ -224,10 +233,14 @@ function parseSampleRateFromMimeType(mimeType) {
 }
 
 function updateStatusText() {
+  const channelLabel = state.includePrereleases ? 'stable + prerelease' : 'stable only';
+  if (state.updater.phase === 'checking') return `Checking ${channelLabel} for updates…`;
+  if (state.updater.phase === 'downloading') return state.updater.message || 'Downloading update…';
+  if (state.updater.phase === 'downloaded') return state.updater.message || 'Update downloaded. Restarting to apply…';
+  if (state.updater.phase === 'error') return state.updater.message || 'Updater error.';
   if (!state.latestRelease) return 'No release details loaded yet.';
   const asset = releaseWindowsAsset(state.latestRelease);
   const newer = compareVersions(state.latestRelease.tag_name, state.currentVersion) > 0;
-  const channelLabel = state.includePrereleases ? 'stable + prerelease' : 'stable only';
   if (!asset) return `Release channel ${channelLabel} found no Windows installer asset yet.`;
   return newer
     ? `Update available on ${channelLabel}: ${state.latestRelease.tag_name} is newer than ${state.currentVersion}.`
@@ -485,22 +498,31 @@ async function loadAnalytics() {
   }
 }
 
+async function refreshReleaseMetadata() {
+  const releases = await getJson('https://api.github.com/repos/EpicIsTheOne/Astra/releases');
+  const candidates = Array.isArray(releases)
+    ? releases.filter((release) => state.includePrereleases || !release.prerelease)
+    : [];
+  const windowsRelease = candidates.find((release) => releaseWindowsAsset(release))
+    || (state.includePrereleases ? releases.find((release) => releaseWindowsAsset(release)) : null)
+    || candidates[0]
+    || null;
+  state.latestRelease = windowsRelease;
+}
+
 async function checkForUpdates() {
   setBusy('updates', true);
   try {
-    const releases = await getJson('https://api.github.com/repos/EpicIsTheOne/Astra/releases');
-    const candidates = Array.isArray(releases)
-      ? releases.filter((release) => state.includePrereleases || !release.prerelease)
-      : [];
-    const windowsRelease = candidates.find((release) => releaseWindowsAsset(release))
-      || (state.includePrereleases ? releases.find((release) => releaseWindowsAsset(release)) : null)
-      || candidates[0]
-      || null;
-    state.latestRelease = windowsRelease;
+    await window.astraDesktop?.updaterConfig?.({ allowPrerelease: state.includePrereleases, autoApply: state.updater.autoApply });
+    await refreshReleaseMetadata();
+    const result = await window.astraDesktop?.updaterCheck?.();
+    if (result?.state) state.updater = { ...state.updater, ...result.state };
   } catch (error) {
+    state.updater = { ...state.updater, phase: 'error', message: `Updater error: ${error.message}`, error: error.message };
     toast(`Update check failed: ${error.message}`);
   } finally {
     setBusy('updates', false);
+    render();
   }
 }
 
@@ -824,10 +846,14 @@ function renderSettingsCard() {
           <input data-agent value="${escapeHtml(state.agent)}" />
         </label>
       </div>
-      <div class="settings-toggle-row">
+      <div class="settings-toggle-row stack-tight">
         <label class="checkbox-row">
           <input type="checkbox" data-include-prereleases ${state.includePrereleases ? 'checked' : ''} />
           <span>Include prerelease updates for Windows</span>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" data-auto-apply-updates ${state.updater.autoApply ? 'checked' : ''} />
+          <span>Automatically apply downloaded updates on Windows</span>
         </label>
       </div>
       <div class="row actions-row">
@@ -838,6 +864,7 @@ function renderSettingsCard() {
       </div>
       <div class="subtle-note">Backend target: ${escapeHtml(commandCenterBase(state.baseUrl))}</div>
       <div class="subtle-note">Installed ${escapeHtml(state.currentVersion)} on ${escapeHtml(state.appPlatform)}. ${escapeHtml(updateStatusText())}</div>
+      <div class="subtle-note">Updater: ${escapeHtml(state.updater.message || 'idle')}${state.updater.progressPercent ? ` (${Math.round(state.updater.progressPercent)}%)` : ''}</div>
     </section>
   `;
 }
@@ -1053,6 +1080,7 @@ function bindEvents() {
     state.baseUrl = root.querySelector('[data-base-url]').value.trim() || DEFAULT_BASE_URL;
     state.agent = root.querySelector('[data-agent]').value.trim() || DEFAULT_AGENT;
     state.includePrereleases = Boolean(root.querySelector('[data-include-prereleases]')?.checked);
+    state.updater.autoApply = Boolean(root.querySelector('[data-auto-apply-updates]')?.checked);
     saveSettings();
     await checkForUpdates();
     toast('Settings saved');
@@ -1139,11 +1167,18 @@ function bindEvents() {
 
 async function bootstrap() {
   render();
+  window.astraDesktop?.onUpdaterState?.((payload) => {
+    state.updater = { ...state.updater, ...(payload || {}) };
+    render();
+  });
   await window.astraDesktop?.appInfo?.().then((info) => {
     if (info?.ok) {
       state.currentVersion = info.version || state.currentVersion;
       state.appPlatform = info.platform || state.appPlatform;
     }
+  }).catch(() => null);
+  await window.astraDesktop?.updaterState?.().then((res) => {
+    if (res?.ok && res.state) state.updater = { ...state.updater, ...res.state };
   }).catch(() => null);
   render();
   await Promise.allSettled([

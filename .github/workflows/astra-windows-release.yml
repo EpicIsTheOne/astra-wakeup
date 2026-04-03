@@ -95,6 +95,7 @@ jobs:
           path: |
             astra-windows/dist/*.exe
             astra-windows/dist/*.blockmap
+            astra-windows/dist/latest*.yml
           if-no-files-found: error
           retention-days: 14
 
@@ -121,3 +122,4 @@ jobs:
           files: |
             dist/*.exe
             dist/*.blockmap
+            dist/latest*.yml

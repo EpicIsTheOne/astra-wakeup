@@ -10,6 +10,9 @@
     "start": "electron .",
     "dist:win": "electron-builder --win nsis portable"
   },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
   "devDependencies": {
     "electron": "^36.2.1",
     "electron-builder": "^24.13.3"
@@ -48,6 +51,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
       "shortcutName": "Astra"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "EpicIsTheOne",
+      "repo": "Astra"
     }
   }
 }
