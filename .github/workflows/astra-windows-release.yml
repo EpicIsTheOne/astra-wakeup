@@ -86,10 +86,7 @@ jobs:
           node -e "const fs=require('fs'); const p='./package.json'; const j=JSON.parse(fs.readFileSync(p,'utf8')); j.version='${{ steps.version_meta.outputs.version_name }}'; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n');"
 
       - name: Build Windows release packages
-        run: npm run dist:win
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run dist:win -- --publish never
 
       - name: Upload Windows release artifacts
         uses: actions/upload-artifact@v7

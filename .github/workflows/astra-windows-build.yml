@@ -41,10 +41,7 @@ jobs:
         run: npm ci
 
       - name: Build Windows packages
-        run: npm run dist:win
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run dist:win -- --publish never
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v7
