@@ -250,7 +250,16 @@ function markAssistantPlaybackActive(active) {
   }
 }
 
-function interruptAssistantPlayback() {
+function notifyAssistantPlaybackFinished() {
+  if (!state.call.active || !state.call.sessionId) return;
+  fetch(`${callApiBase(state.baseUrl)}/api/call/${encodeURIComponent(state.call.sessionId)}/event`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ type: 'assistant.playback_finished' })
+  }).catch(() => null);
+}
+
+function interruptAssistantPlayback(notifyBackend = true) {
   state.call.assistantAudioQueue = [];
   try { window.speechSynthesis?.cancel?.(); } catch {}
   try { state.call.currentPlaybackSource?.stop?.(0); } catch {}
@@ -258,29 +267,11 @@ function interruptAssistantPlayback() {
   state.call.currentPlaybackSource = null;
   state.call.playing = false;
   markAssistantPlaybackActive(false);
+  if (notifyBackend) notifyAssistantPlaybackFinished();
 }
 
-function shouldUploadMicChunk(pcm16Buffer) {
-  if (!state.call.active) return false;
-
-  const now = Date.now();
-  if (!state.call.assistantPlaybackActive) {
-    return now >= state.call.micGateUntilMs;
-  }
-
-  const rms = estimatePcm16Rms(pcm16Buffer);
-  const allowBargeIn = rms >= 1800;
-  state.call.bargeInVoiceChunkStreak = allowBargeIn ? state.call.bargeInVoiceChunkStreak + 1 : 0;
-
-  if (state.call.bargeInVoiceChunkStreak >= 3) {
-    state.call.bargeInVoiceChunkStreak = 0;
-    interruptAssistantPlayback();
-    state.call.status = 'listening…';
-    render();
-    return true;
-  }
-
-  return false;
+function shouldUploadMicChunk(_pcm16Buffer) {
+  return Boolean(state.call.active && state.call.sessionId);
 }
 
 function parseSampleRateFromMimeType(mimeType) {
@@ -810,6 +801,7 @@ function playNextAssistantAudio() {
     state.call.playing = false;
     if (!state.call.assistantAudioQueue.length) {
       markAssistantPlaybackActive(false);
+      notifyAssistantPlaybackFinished();
     }
     playNextAssistantAudio();
   };
